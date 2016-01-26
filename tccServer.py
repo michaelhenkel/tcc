@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import sys
 import struct
 import fcntl
 import socket
@@ -86,7 +87,7 @@ class Handler(BaseHTTPRequestHandler):
             self.request.sendall(result)
 
 def pullTerminalConfig(terminalData):
-    f = open('tcc2.yaml','r')
+    f = open('tcc.yaml','r')
     tccConfig = f.read()
     tccConfigObject = ruamel.yaml.load(tccConfig, ruamel.yaml.RoundTripLoader)
     f.close()
@@ -414,9 +415,12 @@ def get_ip_address(ifname):
     )[20:24])
 
 if __name__ == "__main__":
-    HOST = get_ip_address('br0')
+    if len(sys.argv) < 2:
+        print 'interface missing'
+        sys.exit()
+    HOST = get_ip_address(sys.argv[1])
     PORT = 6666
     server_address = (HOST, PORT)
     httpd = HTTPServer(server_address, Handler)
-    print "Serving at: http://%s:%s" % (HOST, PORT)
+    print "Serving at: http://%s:%s" % ('192.168.1.66', '6666')
     httpd.serve_forever()

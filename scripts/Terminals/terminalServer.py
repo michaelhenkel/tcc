@@ -1,4 +1,6 @@
 #!/usr/bin/python
+import stat
+import shutil
 import urllib2
 import argparse
 import subprocess
@@ -57,16 +59,26 @@ class Handler(BaseHTTPRequestHandler):
             self.request.sendall(result)
         if self.path == '/createEndpoint':
             print data
-            result = createEndpoint(data['name'],data['service'])
+            result = createEndpoint(data['name'],data['service'],data['endpointtype'])
             self.request.sendall(result)
         if self.path == '/deleteEndpoint':
             print data
-            result = deleteEndpoint(data['name'],data['service'])
+            result = deleteEndpoint(data['name'],data['service'],data['endpointtype'])
             self.request.sendall(result)
         if self.path == '/moveTerminal':
             print data
             result = moveTerminal(data)
             self.request.sendall(result)
+
+def copyDirectory(src, dest):
+    try:
+        shutil.copytree(src, dest)
+    # Directories are the same
+    except shutil.Error as e:
+        print('Directory not copied. Error: %s' % e)
+    # Any error saying that the directory doesn't exist
+    except OSError as e:
+        print('Directory not copied. Error: %s' % e)
 
 def createService(name, terminalName, svcId):
     subprocess.call(["ovs-vsctl", "add-br", "vs-" + name])
@@ -106,33 +118,70 @@ def deleteService(name, terminalName):
     subprocess.call(["ovs-vsctl", "del-br", "vs-" + name])
     return json.dumps({ 'status' : 'deleted service'})
 
-def createEndpoint(name, svcName):
-    ip_host = IPDB()
-    ip_host.create(ifname=name, kind='veth', peer=name + '_' + svcName).commit()
-    ip_ns = IPDB(nl=NetNS(name))
-    with ip_host.interfaces[name] as veth:
-        veth.net_ns_fd = name
-        veth.up()
-    with ip_host.interfaces[name + '_' + svcName] as veth:
-        veth.up()
-    subprocess.call(["ovs-vsctl", "add-port", "vs-" + svcName, name + '_' + svcName])
-    ip_host.release()
-    ip_ns.release()
-    nsp = NSPopen(name, ['dhclient', '-lf', '/tmp/' + name + '.lease', name], stdout=subprocess.PIPE)
-    nsp.wait()
-    nsp.release()
+def createEndpoint(name, svcName, endpointtype):
+    if endpointtype == 'ns':
+        ip_host = IPDB()
+        ip_host.create(ifname=name, kind='veth', peer=name + '_' + svcName).commit()
+        ip_ns = IPDB(nl=NetNS(name))
+        with ip_host.interfaces[name] as veth:
+            veth.net_ns_fd = name
+            veth.up()
+        with ip_host.interfaces[name + '_' + svcName] as veth:
+            veth.up()
+        subprocess.call(["ovs-vsctl", "add-port", "vs-" + svcName, name + '_' + svcName])
+        ip_host.release()
+        ip_ns.release()
+        nsp = NSPopen(name, ['dhclient', '-lf', '/tmp/' + name + '.lease', name], stdout=subprocess.PIPE)
+        nsp.wait()
+        nsp.release()
+    if endpointtype == 'lxc':
+        subprocess.call(['/usr/bin/lxc-clone','template',name])
+        lxcUpOvsScript = '#!/bin/bash\n'
+        lxcUpOvsScript += 'BRIDGE="vs-'+ svcName + '"\n'
+        lxcUpOvsScript += 'ovs-vsctl --if-exists del-port $BRIDGE $5\n'
+        lxcUpOvsScript += 'ovs-vsctl add-port $BRIDGE $5\n'
+        f = open('/var/lib/lxc/' + name + '/ovsup.sh','w+')
+        f.write(lxcUpOvsScript)
+        f.close()
+        lxcDownOvsScript = '#!/bin/bash\n'
+        lxcDownOvsScript += 'BRIDGE="vs-'+ svcName + '"\n'
+        lxcDownOvsScript += 'ovs-vsctl --if-exists del-port $BRIDGE $5\n'
+        f = open('/var/lib/lxc/' + name + '/ovsdown.sh','w+')
+        f.write(lxcDownOvsScript)
+        f.close()
+        os.chmod('/var/lib/lxc/' + name + '/ovsup.sh',stat.S_IRWXU)
+        os.chmod('/var/lib/lxc/' + name + '/ovsdown.sh',stat.S_IRWXU)
+        lxcConfig = 'lxc.include = /usr/share/lxc/config/ubuntu.common.conf\n'
+        lxcConfig += 'lxc.arch = x86_64\n' 
+        lxcConfig += 'lxc.rootfs = /var/lib/lxc/' + name + '/rootfs\n'
+        lxcConfig += 'lxc.utsname = ' + name + '\n'
+        lxcConfig += 'lxc.network.type = veth\n'
+        lxcConfig += 'lxc.network.veth.pair = ' + name + '\n'
+        lxcConfig += 'lxc.network.script.up = /var/lib/lxc/' + name + '/ovsup.sh\n'
+        lxcConfig += 'lxc.network.script.down = /var/lib/lxc/' + name + '/ovsdown.sh\n'
+        lxcConfig += 'lxc.network.flags = up\n'
+        f = open('/var/lib/lxc/' + name + '/config','w+')
+        f.write(lxcConfig)
+        f.close()
+        subprocess.call(['/usr/bin/lxc-start','-d','-n',name])
+        pass
     return json.dumps({ 'status' : 'created endpoint'})
 
-def deleteEndpoint(name, svcName):
-    nsp = NSPopen(name, ['dhclient', '-r', name], stdout=subprocess.PIPE)
-    nsp.wait()
-    nsp.release()
-    netns.remove(name)
-    ip_host = IPDB()
-    if name + '_' + svcName in ip_host.interfaces:
-        with ip_host.interfaces[name + '_' + svcName] as veth:
-            veth.remove()
-    subprocess.call(["ovs-vsctl", "del-port", "vs-" + svcName, name + '_' + svcName])
+def deleteEndpoint(name, svcName, endpointtype):
+    if endpointtype == 'ns':
+        nsp = NSPopen(name, ['dhclient', '-r', name], stdout=subprocess.PIPE)
+        nsp.wait()
+        nsp.release()
+        netns.remove(name)
+        ip_host = IPDB()
+        if name + '_' + svcName in ip_host.interfaces:
+            with ip_host.interfaces[name + '_' + svcName] as veth:
+                veth.remove()
+        subprocess.call(["ovs-vsctl", "del-port", "vs-" + svcName, name + '_' + svcName])
+    if endpointtype == 'lxc':
+        subprocess.call(['/usr/bin/lxc-stop','-n',name])
+        subprocess.call(['/usr/bin/lxc-destroy','-n',name])
+        pass
     return json.dumps({ 'status' : 'deleted endpoint'})
 
 def get_ip_address(ifname):

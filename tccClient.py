@@ -45,6 +45,7 @@ add_parser.add_argument('-rt','--routetarget')
 add_parser.add_argument('-host','--host')
 add_parser.add_argument('-f','--yamlfile')
 add_parser.add_argument('-vr','--virtualrouter')
+add_parser.add_argument('-et','--endpointtype')
 
 del_parser = subparsers.add_parser('del', help = "del help")
 del_parser.add_argument('type')
@@ -367,7 +368,7 @@ class Terminal(Elements):
                 dhcpIp = IPNetwork(service.subnet)
                 service.move = True
                 service.dhcpip = str(dhcpIp.broadcast - 1)
-                service.Id = self.Id * 10 - 10 + service.Id 
+                service.Id = self.Id * 10 - 10 + terminal.back_refs.index(service.name) + 1
                 service.virtualrouter = newVirtualrouter.name
                 try:
                     result = sendData(service.show(),newProtocolprocessor.ipaddress,port,'createService')
@@ -437,6 +438,7 @@ class Service(Elements):
 class Endpoint(Elements):
     def __init__(self, obj = None):
         self.mandatoryAttributes = CommentedMap([( 'name' , 'unique' ),
+                                                 ( 'endpointtype' , None ),
                                                  ( 'service', 'ref')])
         self.addMethod = 'addEndpoint'
         self.delMethod = 'delEndpoint'
@@ -454,6 +456,7 @@ class Endpoint(Elements):
         service = tcc.get('Services',endpoint.service)
         terminal = tcc.get('Terminals',service.terminal)
         self.service = service.name
+        self.endpointtype = endpoint.endpointtype
         result = sendData(self.show(),terminal.ipaddress,port,'deleteEndpoint')
         return result
 
@@ -464,7 +467,7 @@ def sendData(data, host, port, action):
     response = urllib2.urlopen(req, json.dumps(data))
     return json.loads(response.read())
 
-tccYaml = 'tcc2.yaml'
+tccYaml = 'tcc.yaml'
 f = open(tccYaml,'a+')
 tccConfig = f.read()
 tccConfigObject = ruamel.yaml.load(tccConfig, ruamel.yaml.RoundTripLoader)
