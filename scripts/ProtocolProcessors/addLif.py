@@ -1,0 +1,120 @@
+#!/usr/bin/python
+import socket
+import os, os.path
+import time
+import uuid
+import sys
+from vnc_api import vnc_api
+api_server='192.168.1.130'
+api_port='8082'
+admin_user = 'admin'
+admin_password = 'contrail123'
+admin_tenant = 'admin'
+vnc_client = vnc_api.VncApi(
+            username = admin_user,
+            password = admin_password,
+            tenant_name = admin_tenant,
+            api_server_host=api_server,
+            auth_host = api_server,
+            api_server_port=api_port)
+
+if os.path.exists( "/tmp/addlif.socket" ):
+    os.remove( "/tmp/addlif.socket" )
+
+server = socket.socket( socket.AF_UNIX, socket.SOCK_DGRAM )
+server.bind("/tmp/addlif.socket")
+
+def createVirtualMachineInterface(tenant, vnName, mac):
+    project = vnc_client.project_read(fq_name_str = 'default-domain:' + tenant)
+    vn = vnc_client.virtual_network_read(fq_name_str = 'default-domain:' + tenant + ':' + vnName)
+    vmIntMac = { 'mac_address' : [ mac ] }
+    vmIntUUID = str(uuid.uuid4())
+    vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project, virtual_machine_interface_mac_addresses = vmIntMac)
+    vmIntObj.set_virtual_network(vn)
+    print vn.get_uuid()
+    vmIntObjResult = vnc_client.virtual_machine_interface_create(vmIntObj)
+    vmIntObj = vnc_client.virtual_machine_interface_read(id = vmIntObjResult)
+    return vmIntObj
+
+def createInstanceIp(ip, vmInterface, vn):
+    instIpUUID = str(uuid.uuid4())
+    ipInst = vnc_api.InstanceIp(name = instIpUUID, instance_ip_address = ip)
+    ipInst.set_virtual_machine_interface(vmInterface)
+    ipInst.set_virtual_network(vn)
+    vnc_client.instance_ip_create(ipInst)
+
+def getVirtualNetwork(tenant, vnName):
+    vn = vnc_client.virtual_network_read(fq_name_str = 'default-domain:' + tenant + ':' + vnName)
+    return vn
+
+def getPhysicalInterface(virtualRouter, interfaceName='eth1'):
+    phIntList = vnc_client.physical_interfaces_list()['physical-interfaces']
+    for phInt in phIntList:
+        if phInt['fq_name'][1] == virtualRouter and phInt['fq_name'][2] == interfaceName:
+            phIntObjUUID = phInt['uuid']
+    phIntObj = vnc_client.physical_interface_read(id = phIntObjUUID)
+    return phIntObj
+
+def getLogicalInterface(physicalInterface, interface):
+    lifList =  physicalInterface.get_logical_interfaces()
+    if lifList:
+        for lif in lifList:
+            print lif
+            if lif['to'][3] == interface:
+                lifObj = vnc_client.logical_interface_read(id = lif['uuid'])
+                return lifObj
+
+def getVirtualMachineInterface(mac):
+    vmIntList = vnc_client.virtual_machine_interfaces_list()['virtual-machine-interfaces']
+    for vmInt in vmIntList:
+        print vmInt
+        vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
+        intMac = vmIntObj.get_virtual_machine_interface_mac_addresses().get_mac_address()[0]
+        if intMac == mac:
+            return vmIntObj
+
+def actionLif(data):
+    args = data.split(' ')
+    oper = args[0]
+    mac = args[1]
+    ip = args[2]
+    terminal = args[3]
+    if oper == 'add':
+        svc_lif = args[4]
+        print svc_lif
+        vnName = svc_lif.split('__')[0]
+        vr = svc_lif.split('__')[1]
+        tenant = svc_lif.split('__')[2]
+        vn = getVirtualNetwork(tenant, vnName)
+        physicalInterface = getPhysicalInterface(vr)
+        logicalInterface = getLogicalInterface(physicalInterface, vnName)
+        vmInterface = createVirtualMachineInterface(tenant, vnName, mac)
+        instanceIp = createInstanceIp(ip, vmInterface, vn)
+        logicalInterface.add_virtual_machine_interface(vmInterface)
+        vnc_client.logical_interface_update(logicalInterface)
+    if oper == 'del':
+       vmInt = getVirtualMachineInterface(mac)
+       if vmInt.get_instance_ip_back_refs():
+           for instIp in vmInt.get_instance_ip_back_refs():
+               vnc_client.instance_ip_delete(id=instIp['uuid'])
+       if vmInt.get_logical_interface_back_refs():
+           for logicalInterface in vmInt.get_logical_interface_back_refs():
+               logInt = vnc_client.logical_interface_read(id = logicalInterface['uuid'])
+           logInt.del_virtual_machine_interface(vmInt)
+           vnc_client.logical_interface_update(logInt)
+       vnc_client.virtual_machine_interface_delete(id = vmInt.get_uuid())
+
+while True:
+    try:
+        datagram = server.recv( 1024 )
+        if not datagram:
+            break
+        else:
+            print "-" * 20
+            print datagram
+            actionLif(datagram)
+    except KeyboardInterrupt, k:
+        print 'shutting down'
+        server.close()
+        os.remove( "/tmp/addlif.socket" )
+        print "Done"

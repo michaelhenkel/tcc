@@ -1,0 +1,48 @@
+Network:
+  mgmt:
+    netmask: 255.255.255.0
+    gateway: 192.168.1.254
+    dns: 192.168.1.254
+  vxlan:
+    netmask: 255.255.255.0
+Customers:
+- name: cust1
+  back_refs: []
+VirtualRouters:
+- name: vr1
+  ipaddress: 192.168.1.70
+  host: 192.168.1.66
+  back_refs: [pp1]
+- name: vr2
+  ipaddress: 192.168.1.71
+  host: 192.168.1.66
+  back_refs: [pp2]
+ProtocolProcessors:
+- name: pp1
+  ipaddress: 192.168.1.80
+  host: 192.168.1.66
+  vxlanip: 10.0.0.1
+  virtualrouter: vr1
+  back_refs: []
+- name: pp2
+  ipaddress: 192.168.1.81
+  host: 192.168.1.66
+  vxlanip: 10.0.0.2
+  virtualrouter: vr2
+  back_refs: [t2, t1]
+Terminals:
+- name: t1
+  ipaddress: 192.168.1.90
+  host: 192.168.1.66
+  vxlanip: 10.0.0.10
+  protocolprocessor: pp2
+  back_refs: []
+  Id: 2
+- name: t2
+  ipaddress: 192.168.1.91
+  host: 192.168.1.66
+  vxlanip: 10.0.0.11
+  protocolprocessor: pp2
+  back_refs: []
+  Id: 1
+Services:
