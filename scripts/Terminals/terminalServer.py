@@ -198,7 +198,7 @@ def setTunnel():
     f.close
     hostname = hostname.rstrip()
     data = json.dumps({'Name':hostname})
-    result = SendHTTPData(data=data, method='POST',HOST='192.168.1.66',PORT='6666',action='pullTerminalConfig').send()
+    result = SendHTTPData(data=data, method='POST',HOST='192.168.1.1',PORT='6666',action='pullTerminalConfig').send()
     subprocess.call(['ovs-vsctl', 'add-port', 'br0', result['pp'], '--', 'set', 'interface', result['pp'], 'type=vxlan', 'options:remote_ip='+result['ip']])
 
 HOST = get_ip_address('eth0')

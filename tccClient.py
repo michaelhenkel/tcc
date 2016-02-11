@@ -172,8 +172,32 @@ class Elements(object):
                     idList.append(element['Id'])
         idList = sorted(idList)
         itemCounter = start
+        print idList
         for item in idList:
             if itemCounter < item:
+                print 'bla' + str(item)
+                print 'bla2 ' + str(itemCounter)
+                return itemCounter
+            itemCounter = itemCounter + 1
+        return itemCounter
+    def findFreeSvcId(self, start, elem1, elem2, key1, key2):
+        idList = []
+        for element in tccConfigObject[elem2]:
+            if element['name'] == key2:
+                back_refs = element['back_refs']
+        if len(back_refs) == 0:
+            return start
+        for back_refElement in back_refs:
+            for element in tccConfigObject[elem1]:
+                if element['name'] == back_refElement:
+                    idList.append(element['Id'])
+        idList = sorted(idList)
+        itemCounter = start
+        print idList
+        for item in idList:
+            if itemCounter < item:
+                print 'bla' + str(item)
+                print 'bla2 ' + str(itemCounter)
                 return itemCounter
             itemCounter = itemCounter + 1
         return itemCounter
@@ -265,7 +289,8 @@ class VirtualRouter(Elements):
         result = sendData(self.show(),self.host,port,'createVirtualRouter')
         return result
     def delVirtualRouter(self):
-        result = sendData(self.show(),host,port,'deleteVirtualRouter')
+        virtualRouter = tcc.get('VirtualRouters',self.name)
+        result = sendData(self.show(),virtualRouter.host,port,'deleteVirtualRouter')
         return result
 
 class ProtocolProcessor(Elements):
@@ -329,7 +354,7 @@ class Terminal(Elements):
         protocolProcessorHost = protocolProcessor.host
         self.protocolprocessorVxlanIp = protocolProcessor.vxlanip
         result = sendData(self.show(),protocolProcessorIp,port,'deleteTerminal')
-        result = sendData(self.show(),host,port,'deleteTerminal')
+        result = sendData(self.show(),terminal.host,port,'deleteTerminal')
         return result
     def moveTerminal(self, tccConfigObject):
         terminal = tcc.get('Terminals',self.name)
@@ -416,11 +441,17 @@ class Service(Elements):
         terminal = tcc.get('Terminals',self.terminal)
         protocolprocessor = tcc.get('ProtocolProcessors',terminal.protocolprocessor)
         virtualRouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
-        svcId = self.findFreeId(1, 'Services', 'Terminals', self.name, terminal.name)
-        self.Id = int(terminal.Id) * 10 + int(svcId) - 10
+        start = int(terminal.Id) * 10 - 10 + 1
+        svcId = self.findFreeId(start, 'Services', 'Terminals', self.name, terminal.name)
+        #self.Id = int(terminal.Id) * 10 + int(svcId) - 10
+        self.Id = svcId
         self.virtualrouter = virtualRouter.name
+        #print self.Id
+        #print terminal.Id
+        #print svcId
         result = sendData(self.show(),protocolprocessor.ipaddress,port,'createService')
         result = sendData(self.show(),terminal.ipaddress,port,'createService')
+        #result = {'status':'bla'}
         return result
     def delService(self):
         service = tcc.get('Services',self.name)
@@ -433,6 +464,7 @@ class Service(Elements):
         self.virtualrouter = virtualrouter.name
         result = sendData(self.show(),terminal.ipaddress,port,'deleteService')
         result = sendData(self.show(),protocolprocessor.ipaddress,port,'deleteService')
+        #result = {'status':'bla'}
         return result
 
 class Endpoint(Elements):
@@ -472,7 +504,7 @@ f = open(tccYaml,'a+')
 tccConfig = f.read()
 tccConfigObject = ruamel.yaml.load(tccConfig, ruamel.yaml.RoundTripLoader)
 
-host = '192.168.1.66'
+host = '192.168.1.1'
 port = '6666'
 
 object_lookup = {}

@@ -5,4 +5,4 @@ echo $3 >> /tmp/bla
 echo $4 >> /tmp/bla
 echo $DNSMASQ_TAGS >> /tmp/bla
 #/usr/bin/python /mnt/addLif.py $1 $2 $3 $4 $DNSMASQ_TAGS >> /tmp/bla
-python /mnt/addLifClient.py $1 $2 $3 $4 $DNSMASQ_TAGS $1
+python /addLifClient.py $1 $2 $3 $4 $DNSMASQ_TAGS $1

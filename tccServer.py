@@ -34,7 +34,7 @@ imageDirectory = '/var/lib/libvirt/images'
 scriptDirectory = '/var/lib/libvirt/scripts'
 definitionDirectory = '/var/lib/libvirt/definitions'
 imageTemplateFileName ='vivid-server-cloudimg-amd64-disk1.img'
-nfsServer = '192.168.1.66'
+nfsServer = '192.168.1.1'
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -193,6 +193,8 @@ def createImage(name, vmType, fileList, interfaceList, vsList=None):
         f.close()
         vmObj = conn.defineXML(xmlDef)
         status = vmObj.create()
+    subprocess.call(['ifconfig','eth0_'+name,'mtu','9000'])
+    subprocess.call(['ifconfig','eth1_'+name,'mtu','9000'])
 
 def destroyImage(name, vmType):
     definitionFile = definitionDirectory + '/' + vmType + '/' + name + '.xml'
@@ -235,6 +237,8 @@ def createInterfaceConfiguration(vmName, interface):
                 if interface['Type'] == 'vhost':
                     interfaceString += 'pre-up ifconfig ' + interface['name'] + ' up\n'
                     interfaceString += 'pre-down ifconfig ' + interface['name'] + ' down\n'
+    if 'Mtu' in interface:
+        interfaceString += '    mtu ' + interface['Mtu'] + '\n'
     interfaceFile = open('/tmp/' + vmName + '_' + interface['name'],'w')
     interfaceFile.write(interfaceString)
     interfaceFile.close()
@@ -257,7 +261,7 @@ class Terminal(object):
         fileList.append(terminalServerFileDict)
         interfaceList = []
         intEth0 = { 'name':'eth0','ipaddress':self.terminalObject['ipaddress'],'dns':self.terminalObject['mgmtDns'],'netmask':self.terminalObject['mgmtNetmask'],'gateway':self.terminalObject['mgmtGateway'], 'Type':'l3'}
-        intEth1 = { 'name':'eth1','ipaddress':self.terminalObject['vxlanip'],'netmask':self.terminalObject['vxlanNetmask'],'Type':'l3'}
+        intEth1 = { 'name':'eth1','ipaddress':self.terminalObject['vxlanip'],'netmask':self.terminalObject['vxlanNetmask'],'Type':'l3','Mtu':'9000'}
         intBr0 = { 'name':'br0','Type':'ovs','Ports': ['eth1']}
         interfaceList.append(intEth0)
         interfaceList.append(intEth1)
@@ -339,9 +343,9 @@ docker_command=/usr/bin/opencontrail-vrouter-docker"""
         fileList.append(vrouterAgentDictFile)
         vrScriptDict = { 'src' : scriptDirectory + '/VirtualRouters/addPhysicalInterface.py', 'dst' : '/addPhysicalInterface.py' }
         fileList.append(vrScriptDict)
-        intEth0 = { 'name':'eth0','Type':'vhost'}
-        intEth1 = { 'name':'eth1', 'Type':'l2' }
-        intVhost0 = { 'name':'vhost0','ipaddress':self.vrObject['ipaddress'],'dns':self.vrObject['mgmtDns'],'netmask':self.vrObject['mgmtNetmask'],'gateway':self.vrObject['mgmtGateway'],'Type':'vhost'}
+        intEth0 = { 'name':'eth0','Type':'vhost','Mtu':'9000'}
+        intEth1 = { 'name':'eth1', 'Type':'l2' ,'Mtu':'9000'}
+        intVhost0 = { 'name':'vhost0','ipaddress':self.vrObject['ipaddress'],'dns':self.vrObject['mgmtDns'],'netmask':self.vrObject['mgmtNetmask'],'gateway':self.vrObject['mgmtGateway'],'Type':'vhost', 'Mtu':'9000'}
         interfaceList.append(intEth0)
         interfaceList.append(intEth1)
         interfaceList.append(intVhost0)
@@ -350,16 +354,40 @@ docker_command=/usr/bin/opencontrail-vrouter-docker"""
         createImage(self.vrObject['name'], 'VirtualRouters', fileList, interfaceList, vsList=vsList)
         return json.dumps({'status':'created Virtual Router'})
     def delete(self):
-        phInt = self.getPhysicalInterface(self.vrObject['name'],'eth1')
-        lifList =  phInt.get_logical_interfaces()
-        if lifList:
-            for lif in lifList:
-                self.vnc_client.logical_interface_delete(id = lif['uuid'])
-        self.vnc_client.physical_interface_delete(id=phInt.get_uuid())
-        phRouter = self.getPhysicalRouter(self.vrObject['name'])
-        self.vnc_client.physical_router_delete(id=phRouter.get_uuid())
-        virtualRouter = self.getVirtualRouter(self.vrObject['name'])
-        self.vnc_client.virtual_router_delete(id=virtualRouter.get_uuid())
+        try:
+            phInt = self.getPhysicalInterface(self.vrObject['name'],'eth1')
+        except:
+            print 'cannot get physical interface'
+        try:
+            lifList =  phInt.get_logical_interfaces()
+            if lifList:
+                for lif in lifList:
+                    try:
+                        self.vnc_client.logical_interface_delete(id = lif['uuid'])
+                    except:
+                        print 'cannot delete lif'
+        except:
+            print 'cannot get lif'
+        try:
+            self.vnc_client.physical_interface_delete(id=phInt.get_uuid())
+        except:
+            print 'cannot delete physical interface'
+        try:
+            phRouter = self.getPhysicalRouter(self.vrObject['name'])
+        except:
+            print 'cannot get physical router'
+        try:
+            self.vnc_client.physical_router_delete(id=phRouter.get_uuid())
+        except:
+            print 'cannot delete physical router'
+        try:
+            virtualRouter = self.getVirtualRouter(self.vrObject['name'])
+        except:
+            print 'cannot get virtual router'
+        try:
+            self.vnc_client.virtual_router_delete(id=virtualRouter.get_uuid())
+        except:
+            print 'cannot delete virtual router'
         destroyImage(self.vrObject['name'], 'VirtualRouters')
         subprocess.call(["ovs-vsctl", "del-br", "vs-" + self.vrObject['name']])
         return json.dumps({'status':'deleted Virtual Router'})
@@ -374,8 +402,8 @@ class ProtocolProcessor(object):
         vsList = []
         interfaceList = []
         intEth0 = { 'name':'eth0','ipaddress':self.ppObject['ipaddress'],'dns':self.ppObject['mgmtDns'],'netmask':self.ppObject['mgmtNetmask'],'gatweway':self.ppObject['mgmtGateway'], 'Type':'l3'}
-        intEth1 = { 'name':'eth1','ipaddress':self.ppObject['vxlanip'],'netmask':self.ppObject['vxlanNetmask'], 'Type':'l3'}
-        intEth2 = { 'name':'eth2', 'Bridge':'br0', 'Type':'l2'}
+        intEth1 = { 'name':'eth1','ipaddress':self.ppObject['vxlanip'],'netmask':self.ppObject['vxlanNetmask'], 'Type':'l3','Mtu':'9000'}
+        intEth2 = { 'name':'eth2', 'Bridge':'br0', 'Type':'l2','Mtu':'9000'}
         intBr0 = { 'name':'br0','Type':'ovs','Ports': ['eth2']}
         interfaceList.append(intEth0)
         interfaceList.append(intEth1)
@@ -422,5 +450,5 @@ if __name__ == "__main__":
     PORT = 6666
     server_address = (HOST, PORT)
     httpd = HTTPServer(server_address, Handler)
-    print "Serving at: http://%s:%s" % ('192.168.1.66', '6666')
+    print "Serving at: http://%s:%s" % (HOST, PORT)
     httpd.serve_forever()

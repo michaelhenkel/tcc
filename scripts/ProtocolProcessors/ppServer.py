@@ -81,8 +81,8 @@ def createVirtualNetwork(tenant, vnName, v4subnet, rt):
                 ip_prefix_len = int(cidr[1]))
     v4DnsServer = str(IPNetwork(v4subnet)[+2])
     v4gateway = str(IPNetwork(v4subnet)[+1])
-    ipam_subnet = vnc_api.IpamSubnetType(subnet = subnet,
-                default_gateway = v4gateway, enable_dhcp = 'false')
+    ipam_subnet = vnc_api.IpamSubnetType(subnet = subnet, dns_server_address = v4DnsServer,
+                default_gateway = v4gateway, enable_dhcp = False)
     vn.add_network_ipam(ref_obj = ipam_obj,
                  ref_data = vnc_api.VnSubnetsType([ipam_subnet]))
     rtObj = vnc_api.RouteTargetList()
