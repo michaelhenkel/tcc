@@ -9,6 +9,7 @@ import fcntl
 import struct
 import uuid
 import signal
+import sys
 from vnc_api import vnc_api
 from pyroute2 import netns
 from pyroute2 import NetNS
@@ -57,9 +58,9 @@ class Handler(BaseHTTPRequestHandler):
             print data
             result = deleteService(data)
             self.request.sendall(result)
-        if self.path == '/addTerminal':
+        if self.path == '/createTerminal':
             print data
-            result = addTerminal(data)
+            result = createTerminal(data)
             self.request.sendall(result)
         if self.path == '/deleteTerminal':
             print data
@@ -142,7 +143,7 @@ def createVirtualMachineInterface(tenant, vnName, mac):
     vmIntObj = vnc_client.virtual_machine_interface_read(id = vmIntObjResult)
     return vmIntObj
 
-def addTerminal(terminal):
+def createTerminal(terminal):
     result = subprocess.call(['ovs-vsctl', 'add-port', 'br0', terminal['name'], '--', 'set', 'interface', terminal['name'], 'type=vxlan', 'options:remote_ip='+terminal['vxlanip']])
     return json.dumps({ 'status' : 'created service'})
 
@@ -150,17 +151,17 @@ def deleteTerminal(terminal):
     result = subprocess.call(['ovs-vsctl', 'del-port', 'br0', terminal['name']])
     return json.dumps({ 'status' : 'created service'})
 
-def createDhcpConfig(name, network, vr, customer):
+def createDhcpConfig(name, network, vr, customer, svcId):
     nw = IPNetwork(network)
     start = str(nw.network + 3)
     end = str(nw.broadcast - 1)
     gw = str(nw.network + 1)
     dns = str(nw.network + 1)
     mask = str(nw.netmask)
-    dhcpConfig = 'interface=' + name + '_v\n'
-    dhcpConfig += 'dhcp-range=set:' + name + '__' + vr + '__' + customer +',' + start + ',' + end + ',' + mask + '\n'
-    dhcpConfig += 'dhcp-option=tag:' + name + '__' + vr + '__' + customer +',3,' + gw + '\n'
-    dhcpConfig += 'dhcp-option=tag:' + name + '__' + vr + '__' + customer + ',6,' + dns + '\n'
+    dhcpConfig = 'interface=' + name + '_' + svcId + '_v\n'
+    dhcpConfig += 'dhcp-range=set:' + name + '__' + vr + '__' + customer + '__' + svcId +',' + start + ',' + end + ',' + mask + '\n'
+    dhcpConfig += 'dhcp-option=tag:' + name + '__' + vr + '__' + customer + '__' + svcId +',3,' + gw + '\n'
+    dhcpConfig += 'dhcp-option=tag:' + name + '__' + vr + '__' + customer + '__' + svcId + ',6,' + dns + '\n'
     dhcpConfig += 'dhcp-leasefile=/mnt/' + name + '.lease' + '\n'
     dhcpConfig += 'dhcp-script=/dhcpscript.sh\n'
     f = open('/etc/dnsmasq.d/' + name + '.conf', 'w')
@@ -169,45 +170,55 @@ def createDhcpConfig(name, network, vr, customer):
 
 #def createService(name, svcId, ip, network, customer, routetarget, vr):
 def createService(data):
+    print data
     name = data['name']
     svcId = data['Id']
+    svcIdString = str(data['Id'])
     ip = data['dhcpip']
     network = data['subnet']
     customer = data['customer']
     routetarget = data['routetarget']
+    terminal = data['terminal']
     vr = data['virtualrouter']
     if 'move' in data:
         move = data['move']
     else:
         move = False
+    if 'add' in data:
+        add = data['add']
+    else:
+        add = False
     print name
-    if_svc_name = name
-    if_svc_peer_name = name + '_v'
-    ip_ns = IPDB(nl=NetNS(name))
+    if_svc_name = name + '_' + svcIdString
+    if_svc_peer_name = name + '_' + svcIdString + '_v'
+    ip_ns = IPDB(nl=NetNS(name + '_' + svcIdString))
     ip_host = IPDB()
     ip_host.create(ifname=if_svc_name, kind='veth', peer=if_svc_peer_name).commit()
     subprocess.call(["ovs-vsctl", "add-port", "br0", if_svc_name])
     subprocess.call(["ovs-vsctl", "set", "port", if_svc_name, "tag=" + str(svcId)])
     netmask = network.split('/')[1]
     ip = ip + '/' + netmask
-    createDhcpConfig(name, network, vr, customer)
+    createDhcpConfig(name, network, vr, customer, svcIdString)
     with ip_host.interfaces[if_svc_name] as veth:
         veth.up()
     with ip_host.interfaces[if_svc_peer_name] as veth:
-        veth.net_ns_fd = name
+        veth.net_ns_fd = name + '_' + svcIdString
     with ip_ns.interfaces[if_svc_peer_name] as veth:
         veth.address = 'de:ad:be:ef:ba:be'
         veth.add_ip(ip)
         veth.up()
     ip_host.release()
     ip_ns.release()
-    nsp = NSPopen(name, ['dnsmasq', '-C', '/etc/dnsmasq.d/' + name + '.conf'], stdout=subprocess.PIPE)
+    nsp = NSPopen(name + '_' + svcIdString, ['dnsmasq', '-C', '/etc/dnsmasq.d/' + name + '.conf'], stdout=subprocess.PIPE)
     nsp.wait()
     nsp.release()
-    if not move:
-        vn = createVirtualNetwork(customer, name, network, routetarget)
+    if not move or add:
+        try:
+            vn = createVirtualNetwork(customer, name, network, routetarget)
+        except:
+            print 'failed to create VN'
     phInt = getPhysicalInterface(vr, serviceInterface)
-    lif = createLogicalInterface(phInt, name, str(svcId))
+    lif = createLogicalInterface(phInt, name + '_' + svcIdString, str(svcId))
     if move:
         if os.path.isfile('/mnt/' + name + '.lease'):
             f = open('/mnt/' + name + '.lease', 'r')
@@ -232,7 +243,7 @@ def deleteService(data):
         move = data['move']
     else:
         move = False
-    lif = getLogicalInterface(vr, name)
+    lif = getLogicalInterface(vr, name + '_' + str(svcId))
     if lif.get_virtual_machine_interface_refs():
         for vmInt in lif.get_virtual_machine_interface_refs():
             vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
@@ -250,7 +261,7 @@ def deleteService(data):
     if not move:
         vn = getVirtualNetwork(customer, name)
         vnc_client.virtual_network_delete(id = vn.get_uuid())
-    p = subprocess.Popen(['ip','netns','pids',name], stdout=subprocess.PIPE)
+    p = subprocess.Popen(['ip','netns','pids',name + '_' + str(svcId)], stdout=subprocess.PIPE)
     out, err = p.communicate()
     for line in out.splitlines():
         print line
@@ -259,12 +270,12 @@ def deleteService(data):
             os.kill(pid, signal.SIGKILL) 
         except:
             print 'nothing to kill'
-    netns.remove(name)
+    netns.remove(name + '_' + str(svcId))
     ip_host = IPDB()
-    if name in ip_host.interfaces:
-        with ip_host.interfaces[name] as veth:
+    if name + '_' + str(svcId) in ip_host.interfaces:
+        with ip_host.interfaces[name + '_' + str(svcId)] as veth:
             veth.remove()
-    subprocess.call(["ovs-vsctl", "del-port", "br0", name])
+    subprocess.call(["ovs-vsctl", "del-port", "br0", name + '_' + str(svcId)])
     if not move:
         os.remove('/mnt/' + name + '.lease')
     return json.dumps({ 'status' : 'deleted service'})

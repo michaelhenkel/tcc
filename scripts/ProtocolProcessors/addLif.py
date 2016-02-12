@@ -85,9 +85,10 @@ def actionLif(data):
         vnName = svc_lif.split('__')[0]
         vr = svc_lif.split('__')[1]
         tenant = svc_lif.split('__')[2]
+        svcId = svc_lif.split('__')[3]
         vn = getVirtualNetwork(tenant, vnName)
         physicalInterface = getPhysicalInterface(vr)
-        logicalInterface = getLogicalInterface(physicalInterface, vnName)
+        logicalInterface = getLogicalInterface(physicalInterface, vnName + '_' + svcId)
         vmInterface = createVirtualMachineInterface(tenant, vnName, mac)
         instanceIp = createInstanceIp(ip, vmInterface, vn)
         logicalInterface.add_virtual_machine_interface(vmInterface)
