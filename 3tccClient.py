@@ -144,6 +144,8 @@ class Elements(object):
             if len(element.back_refs) > 0:
                 print 'cannot delete because back refs exist: %s' % element.back_refs
                 return False
+        delFunction = getattr(self, self.delMethod)
+        result = delFunction()
         elemLen = 0
         for attribute in self.mandatoryAttributes:
             if self.mandatoryAttributes[attribute] == 'ref':
@@ -184,8 +186,6 @@ class Elements(object):
             elementCounter = elementCounter + 1
         if len(tccConfigObject[self.elementCategory]) == 0:
             tccConfigObject[self.elementCategory] = None
-        #delFunction = getattr(self, self.delMethod)
-        #result = delFunction()
         self.updateYaml(tccConfigObject)
     def updateYaml(self, tccConfigObject):
         ruamel.yaml.dump(tccConfigObject, open(tccYaml, 'w'),Dumper=ruamel.yaml.RoundTripDumper)
@@ -538,13 +538,22 @@ class Service(Elements):
         return result
     def delService(self):
         service = tcc.get('Services',self.name)
-        terminal = tcc.get('Terminals',service.terminal)
+        terminal = tcc.get('Terminals',args.terminal)
         protocolprocessor = tcc.get('ProtocolProcessors',terminal.protocolprocessor)
         virtualrouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
         self.terminal = terminal.name
         self.customer = service.customer
-        self.Id = service.Id
+        print service.show()['terminal']
+        for term in service.show()['terminal']:
+            for te in term:
+                if te == args.terminal:
+                    print term[te]
+                    self.Id = term[te]
         self.virtualrouter = virtualrouter.name
+        numSvc = len(service.show()['terminal'])
+        print numSvc
+        if numSvc == 1:
+            self.delvn = True
         result = sendData(self.show(),terminal.ipaddress,port,'deleteService')
         result = sendData(self.show(),protocolprocessor.ipaddress,port,'deleteService')
         #result = {'status':'bla'}
@@ -554,6 +563,7 @@ class Endpoint(Elements):
     def __init__(self, obj = None):
         self.mandatoryAttributes = CommentedMap([( 'name' , 'unique' ),
                                                  ( 'endpointtype' , None ),
+                                                 ( 'terminal' , None ),
                                                  ( 'service', 'ref')])
         self.createMethod = 'createEndpoint'
         self.delMethod = 'delEndpoint'
@@ -563,13 +573,13 @@ class Endpoint(Elements):
         super(Endpoint, self).__init__()
     def createEndpoint(self):
         service = tcc.get('Services',self.service)
-        terminal = tcc.get('Terminals',service.terminal)
+        terminal = tcc.get('Terminals',args.terminal)
         result = sendData(self.show(),terminal.ipaddress,port,'createEndpoint')
         return result
     def delEndpoint(self):
         endpoint = tcc.get('Endpoints',self.name)
         service = tcc.get('Services',endpoint.service)
-        terminal = tcc.get('Terminals',service.terminal)
+        terminal = tcc.get('Terminals',args.terminal)
         self.service = service.name
         self.endpointtype = endpoint.endpointtype
         result = sendData(self.show(),terminal.ipaddress,port,'deleteEndpoint')
