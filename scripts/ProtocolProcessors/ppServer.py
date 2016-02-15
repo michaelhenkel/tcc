@@ -182,6 +182,8 @@ def createService(data):
     vr = data['virtualrouter']
     if 'move' in data:
         move = data['move']
+        oldvr = data['oldvr']
+        oldId = data['oldId']
     else:
         move = False
     if 'add' in data:
@@ -220,6 +222,16 @@ def createService(data):
     phInt = getPhysicalInterface(vr, serviceInterface)
     lif = createLogicalInterface(phInt, name + '_' + svcIdString, str(svcId))
     if move:
+        oldlif = getLogicalInterface(oldvr, name + '_' + str(oldId))
+        if oldlif.get_virtual_machine_interface_refs():
+            for vmInt in oldlif.get_virtual_machine_interface_refs():
+                vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
+                epMac = vmIntObj.get_virtual_machine_interface_mac_addresses().get_mac_address()[0]
+                vn = getVirtualNetwork(customer, name)
+                vmInterface = createVirtualMachineInterface(customer, name, epMac)
+                lif.add_virtual_machine_interface(vmInterface)
+                vnc_client.logical_interface_update(lif)
+        '''
         if os.path.isfile('/mnt/' + name + '.lease'):
             f = open('/mnt/' + name + '.lease', 'r')
             leases = f.readlines()
@@ -232,6 +244,7 @@ def createService(data):
                 createInstanceIp(epIp, vmInterface, vn)
                 lif.add_virtual_machine_interface(vmInterface)
                 vnc_client.logical_interface_update(lif)
+        '''
     return json.dumps({ 'status' : 'created service'})
 
 def deleteService(data):
@@ -243,6 +256,12 @@ def deleteService(data):
         move = data['move']
     else:
         move = False
+    if 'delvn' in data:
+        delvn = data['delvn']
+    else:
+        delvn = False
+    print data
+    lif = getLogicalInterface(vr, name + '_' + str(svcId))
     lif = getLogicalInterface(vr, name + '_' + str(svcId))
     if lif.get_virtual_machine_interface_refs():
         for vmInt in lif.get_virtual_machine_interface_refs():
@@ -260,7 +279,8 @@ def deleteService(data):
     vnc_client.logical_interface_delete(id = lif.get_uuid())
     if not move:
         vn = getVirtualNetwork(customer, name)
-        vnc_client.virtual_network_delete(id = vn.get_uuid())
+        if delvn:
+            vnc_client.virtual_network_delete(id = vn.get_uuid())
     p = subprocess.Popen(['ip','netns','pids',name + '_' + str(svcId)], stdout=subprocess.PIPE)
     out, err = p.communicate()
     for line in out.splitlines():
@@ -277,7 +297,8 @@ def deleteService(data):
             veth.remove()
     subprocess.call(["ovs-vsctl", "del-port", "br0", name + '_' + str(svcId)])
     if not move:
-        os.remove('/mnt/' + name + '.lease')
+        if delvn:
+            os.remove('/mnt/' + name + '.lease')
     return json.dumps({ 'status' : 'deleted service'})
 
 def get_ip_address(ifname):
