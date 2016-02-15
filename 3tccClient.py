@@ -236,7 +236,7 @@ class Elements(object):
         self.name = args.name
         moveFunction = getattr(self, self.moveMethod)
         result = moveFunction(tccConfigObject)
-        print ruamel.yaml.dump(result,Dumper=ruamel.yaml.RoundTripDumper)
+        #print ruamel.yaml.dump(result,Dumper=ruamel.yaml.RoundTripDumper)
         self.updateYaml(result)
         return self
     def add(self, args, tccConfigObject):
@@ -438,6 +438,7 @@ class Terminal(Elements):
         self.oldpp = currentProtocolprocessor.name
         self.newpp = newProtocolprocessor.name
         self.newppvxlanip = newProtocolprocessor.vxlanip
+        self.oldvr = currentVirtualrouter.name
         try:
             result = sendData(self.show(),newProtocolprocessor.ipaddress,port,'createTerminal')
         except:
@@ -479,7 +480,11 @@ class Terminal(Elements):
                     print 'deleting service failed'
                 for svcObj in tccConfigObject['Services']:
                     if svcObj['name'] == service.name:
-                        svcObj['Id'] = service.Id
+                        for term in svcObj['terminal']:
+                           for te in term:
+                               if te == terminal.name:
+                                   term[te] = service.Id
+                                   print term[te]
         try:
             result = sendData(self.show(),currentProtocolprocessor.ipaddress,port,'deleteTerminal')
         except:
@@ -587,11 +592,11 @@ class Endpoint(Elements):
 
 def sendData(data, host, port, action):
     print 'bla'
-    connection = 'http://' + host + ':' + port + '/' + action
-    req = urllib2.Request(connection)
-    req.add_header('Content-Type', 'application/json')
-    response = urllib2.urlopen(req, json.dumps(data))
-    return json.loads(response.read())
+    #connection = 'http://' + host + ':' + port + '/' + action
+    #req = urllib2.Request(connection)
+    #req.add_header('Content-Type', 'application/json')
+    #response = urllib2.urlopen(req, json.dumps(data))
+    #return json.loads(response.read())
     return {'status':'ok'}
 
 tccYaml = 'tcc.yaml'
