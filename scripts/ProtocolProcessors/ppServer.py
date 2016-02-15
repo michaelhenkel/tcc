@@ -226,9 +226,14 @@ def createService(data):
         if oldlif.get_virtual_machine_interface_refs():
             for vmInt in oldlif.get_virtual_machine_interface_refs():
                 vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
+                if vmIntObj.get_instance_ip_back_refs():
+                    for instIp in vmIntObj.get_instance_ip_back_refs():
+                        instIpObj = vnc_client.instance_ip_read(id = instIp['uuid'])
+                        epIp = instIpObj.get_instance_ip_address()
                 epMac = vmIntObj.get_virtual_machine_interface_mac_addresses().get_mac_address()[0]
                 vn = getVirtualNetwork(customer, name)
                 vmInterface = createVirtualMachineInterface(customer, name, epMac)
+                createInstanceIp(epIp, vmInterface, vn)
                 lif.add_virtual_machine_interface(vmInterface)
                 vnc_client.logical_interface_update(lif)
         '''
