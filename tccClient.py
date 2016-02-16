@@ -31,21 +31,26 @@ def parse_extra (parser, namespace):
 argparser=argparse.ArgumentParser()
 subparsers = argparser.add_subparsers(help='sub-command help', dest='subparser_name')
 
-add_parser = subparsers.add_parser('add', help = "add help")
-add_parser.add_argument('type')
-add_parser.add_argument('-n','--name')
-add_parser.add_argument('-t','--terminal')
-add_parser.add_argument('-sn','--subnet')
-add_parser.add_argument('-ip','--ipaddress')
-add_parser.add_argument('-vip','--vxlanip')
-add_parser.add_argument('-pp','--protocolprocessor')
-add_parser.add_argument('-svc','--service')
-add_parser.add_argument('-cust','--customer')
-add_parser.add_argument('-rt','--routetarget')
-add_parser.add_argument('-host','--host')
-add_parser.add_argument('-f','--yamlfile')
-add_parser.add_argument('-vr','--virtualrouter')
-add_parser.add_argument('-et','--endpointtype')
+create_parser = subparsers.add_parser('create', help = "create help")
+create_parser.add_argument('type')
+create_parser.add_argument('-n','--name')
+create_parser.add_argument('-t','--terminal')
+create_parser.add_argument('-sn','--subnet')
+create_parser.add_argument('-ip','--ipaddress')
+create_parser.add_argument('-vip','--vxlanip')
+create_parser.add_argument('-pp','--protocolprocessor')
+create_parser.add_argument('-svc','--service')
+create_parser.add_argument('-cust','--customer')
+create_parser.add_argument('-rt','--routetarget')
+create_parser.add_argument('-host','--host')
+create_parser.add_argument('-f','--yamlfile')
+create_parser.add_argument('-vr','--virtualrouter')
+create_parser.add_argument('-et','--endpointtype')
+
+del_parser = subparsers.add_parser('add', help = "del help")
+del_parser.add_argument('type')
+del_parser.add_argument('-n','--name')
+del_parser.add_argument('-t','--terminal')
 
 del_parser = subparsers.add_parser('del', help = "del help")
 del_parser.add_argument('type')
@@ -125,7 +130,7 @@ class Elements(object):
             check_lookup[attribute] = getattr(args, attribute)
         for k,v in check_lookup.items():
             if self.mandatoryAttributes[k] == 'unique':
-                if tcc.getByAttr(self.elementCategory, k, v):
+                if tcc.getByAttr(self.elementCategory, k, v) and args.subparser_name != 'add':
                     element = tcc.getByAttr(self.elementCategory, k, v).name
                     print self.elementType + ' ' + element + ' already uses ' + k + ' ' + v
                     return False
@@ -209,6 +214,15 @@ class Elements(object):
         self.updateYaml(result)
         return self
     def add(self, args, tccConfigObject):
+        service = tcc.get('Services',args.name)
+        newTerminal = tcc.get('Terminals', args.terminal)
+        protocolprocessor = tcc.get('ProtocolProcessors', newTerminal.protocolprocessor)
+        args.customer = service.customer
+        args.routetarget = service.routetarget
+        args.subnet = service.subnet
+        result = self.check(args)
+        print result.show()
+    def create(self, args, tccConfigObject):
         result = self.check(args)
         if not result:
             sys.exit()
@@ -239,8 +253,8 @@ class Elements(object):
         self.mgmtGateway = tccConfigObject['Network']['mgmt']['gateway']
         self.mgmtDns = tccConfigObject['Network']['mgmt']['dns']
         self.vxlanNetmask = tccConfigObject['Network']['vxlan']['netmask']
-        addFunction = getattr(self, self.addMethod)
-        result = addFunction()
+        createFunction = getattr(self, self.createMethod)
+        result = createFunction()
 
         if 'Error' in result:
             print result['Error']
@@ -255,7 +269,7 @@ class Customer(Elements):
     def __init__(self, obj = None):
         self.mandatoryAttributes = CommentedMap([( 'name' , 'unique' )])
         self.back_refs = []
-        self.addMethod = 'addCustomer'
+        self.createMethod = 'createCustomer'
         self.delMethod = 'delCustomer'
         if obj:
             if 'back_refs' in obj:
@@ -263,7 +277,7 @@ class Customer(Elements):
             for attribute in self.mandatoryAttributes:
                 setattr(self,attribute,obj[attribute])
         super(Customer, self).__init__()
-    def addCustomer(self):
+    def createCustomer(self):
         result = sendData(self.show(),host,port,'createCustomer')
         return result
     def delCustomer(self):
@@ -276,7 +290,7 @@ class VirtualRouter(Elements):
                                                  ( 'ipaddress', 'unique'),
                                                  ( 'host', None)])
         self.back_refs = []
-        self.addMethod = 'addVirtualRouter'
+        self.createMethod = 'createVirtualRouter'
         self.delMethod = 'delVirtualRouter'
         if obj:
             if 'back_refs' in obj:
@@ -284,7 +298,7 @@ class VirtualRouter(Elements):
             for attribute in self.mandatoryAttributes:
                 setattr(self,attribute,obj[attribute])
         super(VirtualRouter, self).__init__()
-    def addVirtualRouter(self):
+    def createVirtualRouter(self):
         print self.host
         result = sendData(self.show(),self.host,port,'createVirtualRouter')
         return result
@@ -301,7 +315,7 @@ class ProtocolProcessor(Elements):
                                                  ( 'vxlanip', 'unique'),
                                                  ( 'virtualrouter', 'ref')])
         self.back_refs = []
-        self.addMethod = 'addProtocolProcessor'
+        self.createMethod = 'createProtocolProcessor'
         self.delMethod = 'delProtocolProcessor'
         if obj:
             if 'back_refs' in obj:
@@ -309,7 +323,7 @@ class ProtocolProcessor(Elements):
             for attribute in self.mandatoryAttributes:
                 setattr(self,attribute,obj[attribute])
         super(ProtocolProcessor, self).__init__()
-    def addProtocolProcessor(self):
+    def createProtocolProcessor(self):
         result = sendData(self.show(),self.host,port,'createProtocolProcessor')
         return result
     def delProtocolProcessor(self):
@@ -325,7 +339,7 @@ class Terminal(Elements):
                                                  ( 'vxlanip', 'unique'),
                                                  ( 'protocolprocessor', 'ref')])
         self.back_refs = []
-        self.addMethod = 'addTerminal'
+        self.createMethod = 'createTerminal'
         self.delMethod = 'delTerminal'
         self.moveMethod = 'moveTerminal'
         self.Id = ''
@@ -336,14 +350,14 @@ class Terminal(Elements):
             for attribute in self.mandatoryAttributes:
                 setattr(self,attribute,obj[attribute])
         super(Terminal, self).__init__()
-    def addTerminal(self):
+    def createTerminal(self):
         protocolProcessor = tcc.get('ProtocolProcessors',self.protocolprocessor)
         protocolProcessorName = protocolProcessor.name
         protocolProcessorIp = protocolProcessor.ipaddress
         protocolProcessorHost = protocolProcessor.host
         self.protocolprocessorVxlanIp = protocolProcessor.vxlanip
         self.Id = self.findFreeId(1, 'Terminals', 'ProtocolProcessors', self.name, protocolProcessorName)
-        result = sendData(self.show(),protocolProcessorIp,port,'addTerminal')
+        result = sendData(self.show(),protocolProcessorIp,port,'createTerminal')
         result = sendData(self.show(),self.host,port,'createTerminal')
         return result
     def delTerminal(self):
@@ -370,9 +384,9 @@ class Terminal(Elements):
         self.newpp = newProtocolprocessor.name
         self.newppvxlanip = newProtocolprocessor.vxlanip
         try:
-            result = sendData(self.show(),newProtocolprocessor.ipaddress,port,'addTerminal')
+            result = sendData(self.show(),newProtocolprocessor.ipaddress,port,'createTerminal')
         except:
-            print 'add terminal failed' 
+            print 'create terminal failed' 
         try:
             result = sendData(self.show(),terminal.ipaddress,port,'moveTerminal')
         except:
@@ -423,10 +437,10 @@ class Service(Elements):
         self.mandatoryAttributes = CommentedMap([( 'name' , 'unique' ),
                                                  ( 'terminal', 'ref'),
                                                  ( 'customer', 'ref'),
-                                                 ( 'routetarget', 'unique'),
+                                                 ( 'routetarget', None),
                                                  ( 'subnet', None)])
         self.back_refs = []
-        self.addMethod = 'addService'
+        self.createMethod = 'createService'
         self.delMethod = 'delService'
         if obj:
             if 'back_refs' in obj:
@@ -435,7 +449,7 @@ class Service(Elements):
             for attribute in self.mandatoryAttributes:
                 setattr(self,attribute,obj[attribute])
         super(Service, self).__init__()
-    def addService(self):
+    def createService(self):
         dhcpip = IPNetwork(self.subnet)
         self.dhcpip = str(dhcpip.broadcast - 1)
         terminal = tcc.get('Terminals',self.terminal)
@@ -472,13 +486,13 @@ class Endpoint(Elements):
         self.mandatoryAttributes = CommentedMap([( 'name' , 'unique' ),
                                                  ( 'endpointtype' , None ),
                                                  ( 'service', 'ref')])
-        self.addMethod = 'addEndpoint'
+        self.createMethod = 'createEndpoint'
         self.delMethod = 'delEndpoint'
         if obj:
             for attribute in self.mandatoryAttributes:
                 setattr(self,attribute,obj[attribute])
         super(Endpoint, self).__init__()
-    def addEndpoint(self):
+    def createEndpoint(self):
         service = tcc.get('Services',self.service)
         terminal = tcc.get('Terminals',service.terminal)
         result = sendData(self.show(),terminal.ipaddress,port,'createEndpoint')
@@ -547,6 +561,12 @@ if args.subparser_name == 'add':
     element = element_lookup[args.type]
     class_object = object_lookup[element]()
     newElement = class_object.add(args, tccConfigObject)
+
+if args.subparser_name == 'create':
+    tcc = Tcc(tccConfigObject)
+    element = element_lookup[args.type]
+    class_object = object_lookup[element]()
+    newElement = class_object.create(args, tccConfigObject)
     if newElement:
         print newElement.show()
 
