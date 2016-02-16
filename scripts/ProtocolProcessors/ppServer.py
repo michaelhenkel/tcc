@@ -265,8 +265,8 @@ def deleteService(data):
         delvn = data['delvn']
     else:
         delvn = False
-    print data
-    lif = getLogicalInterface(vr, name + '_' + str(svcId))
+    print vr
+    print name + '_' + str(svcId)
     lif = getLogicalInterface(vr, name + '_' + str(svcId))
     if lif.get_virtual_machine_interface_refs():
         for vmInt in lif.get_virtual_machine_interface_refs():

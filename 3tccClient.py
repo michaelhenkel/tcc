@@ -199,7 +199,9 @@ class Elements(object):
             return start
         for back_refElement in back_refs:
             for element in tccConfigObject[elem1]:
+                print tccConfigObject[elem1]
                 if element['name'] == back_refElement:
+                    print element['name']
                     idList.append(element['Id'])
         idList = sorted(idList)
         itemCounter = start
@@ -221,7 +223,13 @@ class Elements(object):
         for back_refElement in back_refs:
             for element in tccConfigObject[elem1]:
                 if element['name'] == back_refElement:
-                    idList.append(element['Id'])
+                    for term in element['terminal']:
+                        print term
+                        for te in term:
+                            if te == key2:
+                                print term[te]
+                                idList.append(term[te])
+                    #idList.append(element['Id'])
         idList = sorted(idList)
         itemCounter = start
         print idList
@@ -270,6 +278,8 @@ class Elements(object):
                             element['back_refs'] = back_refs
         for element in tccConfigObject[self.elementCategory]:
             if element['name'] == self.name:
+                if not isinstance(element['terminal'], list):
+                    element['terminal'] = []
                 element['terminal'].append(terminalDict)
         print tccConfigObject[self.elementCategory]
         self.updateYaml(tccConfigObject)            
@@ -465,6 +475,15 @@ class Terminal(Elements):
                 service.dhcpip = str(dhcpIp.broadcast - 1)
                 service.Id = self.Id * 10 - 10 + terminal.back_refs.index(service.name) + 1
                 service.virtualrouter = newVirtualrouter.name
+                service.oldvr = currentVirtualrouter.name
+                for svcObj in tccConfigObject['Services']:
+                    if svcObj['name'] == service.name:
+                        for term in svcObj['terminal']:
+                           for te in term:
+                               if te == terminal.name:
+                                   service.oldId = term[te]
+                                   term[te] = service.Id
+                                   print term[te]
                 try:
                     result = sendData(service.show(),newProtocolprocessor.ipaddress,port,'createService')
                 except:
@@ -475,16 +494,10 @@ class Terminal(Elements):
                     print 'changing service failed'
                 service.virtualrouter = currentVirtualrouter.name
                 try:
+                    service.Id = service.oldId
                     result = sendData(service.show(),currentProtocolprocessor.ipaddress,port,'deleteService')
                 except:
                     print 'deleting service failed'
-                for svcObj in tccConfigObject['Services']:
-                    if svcObj['name'] == service.name:
-                        for term in svcObj['terminal']:
-                           for te in term:
-                               if te == terminal.name:
-                                   term[te] = service.Id
-                                   print term[te]
         try:
             result = sendData(self.show(),currentProtocolprocessor.ipaddress,port,'deleteTerminal')
         except:
@@ -518,7 +531,8 @@ class Service(Elements):
         protocolprocessor = tcc.get('ProtocolProcessors',terminal.protocolprocessor)
         virtualRouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
         start = int(terminal.Id) * 10 - 10 + 1
-        svcId = self.findFreeId(start, 'Services', 'Terminals', self.name, terminal.name)
+        #svcId = self.findFreeId(start, 'Services', 'Terminals', self.name, terminal.name)
+        svcId = self.findFreeSvcId(start, 'Services', 'Terminals', self.name, terminal.name)
         self.Id = svcId
         self.virtualrouter = virtualRouter.name
         result = sendData(self.show(),protocolprocessor.ipaddress,port,'createService')
@@ -535,7 +549,8 @@ class Service(Elements):
         self.customer = service.customer
         self.add = True 
         start = int(terminal.Id) * 10 - 10 + 1
-        svcId = self.findFreeId(start, 'Services', 'Terminals', self.name, terminal.name)
+        svcId = self.findFreeSvcId(start, 'Services', 'Terminals', self.name, terminal.name)
+        #svcId = self.findFreeId(start, 'Services', 'Terminals', self.name, terminal.name)
         self.Id = svcId
         self.virtualrouter = virtualRouter.name
         result = sendData(self.show(),protocolprocessor.ipaddress,port,'createService')
@@ -592,11 +607,11 @@ class Endpoint(Elements):
 
 def sendData(data, host, port, action):
     print 'bla'
-    #connection = 'http://' + host + ':' + port + '/' + action
-    #req = urllib2.Request(connection)
-    #req.add_header('Content-Type', 'application/json')
-    #response = urllib2.urlopen(req, json.dumps(data))
-    #return json.loads(response.read())
+    connection = 'http://' + host + ':' + port + '/' + action
+    req = urllib2.Request(connection)
+    req.add_header('Content-Type', 'application/json')
+    response = urllib2.urlopen(req, json.dumps(data))
+    return json.loads(response.read())
     return {'status':'ok'}
 
 tccYaml = 'tcc.yaml'
