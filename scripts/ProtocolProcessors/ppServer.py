@@ -159,7 +159,7 @@ def createDhcpConfig(name, network, vr, customer, svcId):
     dns = str(nw.network + 1)
     mask = str(nw.netmask)
     dhcpConfig = 'interface=' + name + '_' + svcId + '_v\n'
-    dhcpConfig += 'dhcp-range=set:' + name + '__' + vr + '__' + customer + '__' + svcId +',' + start + ',' + end + ',' + mask + '\n'
+    dhcpConfig += 'dhcp-range=set:' + name + '__' + vr + '__' + customer + '__' + svcId +',' + start + ',' + end + ',' + mask + ',infinite\n'
     dhcpConfig += 'dhcp-option=tag:' + name + '__' + vr + '__' + customer + '__' + svcId +',3,' + gw + '\n'
     dhcpConfig += 'dhcp-option=tag:' + name + '__' + vr + '__' + customer + '__' + svcId + ',6,' + dns + '\n'
     dhcpConfig += 'dhcp-leasefile=/mnt/' + name + '.lease' + '\n'

@@ -32,7 +32,10 @@ def createVirtualMachineInterface(tenant, vnName, mac):
     vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project, virtual_machine_interface_mac_addresses = vmIntMac)
     vmIntObj.set_virtual_network(vn)
     print vn.get_uuid()
-    vmIntObjResult = vnc_client.virtual_machine_interface_create(vmIntObj)
+    try:
+        vmIntObjResult = vnc_client.virtual_machine_interface_create(vmIntObj)
+    except:
+        print 'cannot create vmi'
     vmIntObj = vnc_client.virtual_machine_interface_read(id = vmIntObjResult)
     return vmIntObj
 
@@ -41,7 +44,10 @@ def createInstanceIp(ip, vmInterface, vn):
     ipInst = vnc_api.InstanceIp(name = instIpUUID, instance_ip_address = ip)
     ipInst.set_virtual_machine_interface(vmInterface)
     ipInst.set_virtual_network(vn)
-    vnc_client.instance_ip_create(ipInst)
+    try:
+        vnc_client.instance_ip_create(ipInst)
+    except:
+        print 'cannot create instance ip'
 
 def getVirtualNetwork(tenant, vnName):
     vn = vnc_client.virtual_network_read(fq_name_str = 'default-domain:' + tenant + ':' + vnName)
@@ -80,6 +86,7 @@ def actionLif(data):
     ip = args[2]
     terminal = args[3]
     if oper == 'add':
+        already_exists = False
         svc_lif = args[4]
         print svc_lif
         vnName = svc_lif.split('__')[0]
@@ -89,21 +96,31 @@ def actionLif(data):
         vn = getVirtualNetwork(tenant, vnName)
         physicalInterface = getPhysicalInterface(vr)
         logicalInterface = getLogicalInterface(physicalInterface, vnName + '_' + svcId)
-        vmInterface = createVirtualMachineInterface(tenant, vnName, mac)
-        instanceIp = createInstanceIp(ip, vmInterface, vn)
-        logicalInterface.add_virtual_machine_interface(vmInterface)
-        vnc_client.logical_interface_update(logicalInterface)
+        if logicalInterface.get_virtual_machine_interface_refs():
+            for vmInt in logicalInterface.get_virtual_machine_interface_refs():
+                vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
+                if vmIntObj.virtual_machine_interface_mac_addresses.mac_address[0] == mac:
+                    for instIp in vmIntObj.get_instance_ip_back_refs():
+                        instIpObj = vnc_client.instance_ip_read(id = instIp['uuid'])
+                        if instIpObj.get_instance_ip_address() == ip:
+                            already_exists = True
+        if not already_exists:
+            vmInterface = createVirtualMachineInterface(tenant, vnName, mac)
+            instanceIp = createInstanceIp(ip, vmInterface, vn)
+            logicalInterface.add_virtual_machine_interface(vmInterface)
+            vnc_client.logical_interface_update(logicalInterface)
     if oper == 'del':
        vmInt = getVirtualMachineInterface(mac)
-       if vmInt.get_instance_ip_back_refs():
-           for instIp in vmInt.get_instance_ip_back_refs():
-               vnc_client.instance_ip_delete(id=instIp['uuid'])
-       if vmInt.get_logical_interface_back_refs():
-           for logicalInterface in vmInt.get_logical_interface_back_refs():
-               logInt = vnc_client.logical_interface_read(id = logicalInterface['uuid'])
-           logInt.del_virtual_machine_interface(vmInt)
-           vnc_client.logical_interface_update(logInt)
-       vnc_client.virtual_machine_interface_delete(id = vmInt.get_uuid())
+       if vmInt:
+           if vmInt.get_instance_ip_back_refs():
+               for instIp in vmInt.get_instance_ip_back_refs():
+                   vnc_client.instance_ip_delete(id=instIp['uuid'])
+           if vmInt.get_logical_interface_back_refs():
+               for logicalInterface in vmInt.get_logical_interface_back_refs():
+                   logInt = vnc_client.logical_interface_read(id = logicalInterface['uuid'])
+               logInt.del_virtual_machine_interface(vmInt)
+               vnc_client.logical_interface_update(logInt)
+           vnc_client.virtual_machine_interface_delete(id = vmInt.get_uuid())
 
 while True:
     try:
