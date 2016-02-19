@@ -109,8 +109,6 @@ def actionLif(data):
             instanceIp = createInstanceIp(ip, vmInterface, vn)
             logicalInterface.add_virtual_machine_interface(vmInterface)
             vnc_client.logical_interface_update(logicalInterface)
-        else:
-            print 'interface already exists'
     if oper == 'del':
        vmInt = getVirtualMachineInterface(mac)
        if vmInt:
