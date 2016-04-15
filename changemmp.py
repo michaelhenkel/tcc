@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import sys
 from jnpr.junos import Device
+from jnpr.junos.utils.config import Config
 
 mmpList = [{'mmp1':'192.168.1.11'},{'mmp2':'192.168.1.12'}]
 serviceList = ['svc1','svc2','svc3']
@@ -25,18 +26,41 @@ print 'sas: %s, mmp: %s, svc: %s' % (sas, mmp, preferredSvcList)
 print preferredDevice
 print nonpreferredDeviceList
 print creds['user']
-#dev = Device(host=preferredDevice, user=creds['user'], password=creds['password'])
-#dev.open()
+dev = Device(host=preferredDevice, user=creds['user'], password=creds['password'])
+dev.open()
 for sasItem in sasList:
     if sasItem.keys()[0] == sas:
         sasPeer = sasItem.values()[0]
 for prefSvc in preferredSvcList:
     print 'device %s' % preferredDevice
-    print "set policy-options policy-statement %s_%s_to_var term %s then metric 10" % (sas, prefSvc, prefSvc)
-    print "set policy-options policy-statement %s_%s_to_sas term %s then local-preference 110" % (sas, prefSvc, prefSvc)
+    varPolicy = "set policy-options policy-statement " + sas + "_" + prefSvc +"_to_var term " + prefSvc + " then metric 10"
+    sasPolicy = "set policy-options policy-statement " + sas + "_" + prefSvc +"_to_sas term " + prefSvc + " then local-preference 110"
+    print varPolicy
+    print sasPolicy
+    cfg = Config(dev)
+    cfg.lock()
+    cfg.load(varPolicy, format="set", merge=True)
+    cfg.load(sasPolicy, format="set", merge=True)
+cfg.commit()
+cfg.unlock()
+dev.close()
+
+
+    
 
 for nonprefDev in nonpreferredDeviceList:
     print 'device %s' % nonprefDev
+    dev = Device(host=nonprefDev, user=creds['user'], password=creds['password'])
+    dev.open()
+    cfg = Config(dev)
+    cfg.lock()
     for prefSvc in preferredSvcList:
-        print "set policy-options policy-statement %s_%s_to_var term %s then metric 20" % (sas, prefSvc, prefSvc)
-        print "set policy-options policy-statement %s_%s_to_sas term %s then local-preference 100" % (sas, prefSvc, prefSvc)
+        varPolicy = "set policy-options policy-statement " + sas + "_" + prefSvc +"_to_var term " + prefSvc + " then metric 20"
+        sasPolicy = "set policy-options policy-statement " + sas + "_" + prefSvc +"_to_sas term " + prefSvc + " then local-preference 100"
+        print varPolicy
+        print sasPolicy
+        cfg.load(varPolicy, format="set", merge=True)
+        cfg.load(sasPolicy, format="set", merge=True)
+    cfg.commit()
+    cfg.unlock()
+    dev.close()
