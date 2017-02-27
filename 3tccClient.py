@@ -353,6 +353,7 @@ class VirtualRouter(Elements):
     def __init__(self, obj = None):
         self.mandatoryAttributes = CommentedMap([( 'name' , 'unique' ),
                                                  ( 'ipaddress', 'unique'),
+                                                 ( 'protocolprocessor', 'ref'),
                                                  ( 'host', None)])
         self.back_refs = []
         self.createMethod = 'createVirtualRouter'
@@ -377,8 +378,7 @@ class ProtocolProcessor(Elements):
         self.mandatoryAttributes = CommentedMap([( 'name' , 'unique' ),
                                                  ( 'ipaddress', 'unique'),
                                                  ( 'host', None),
-                                                 ( 'vxlanip', 'unique'),
-                                                 ( 'virtualrouter', 'ref')])
+                                                 ( 'vxlanip', 'unique')])
         self.back_refs = []
         self.createMethod = 'createProtocolProcessor'
         self.delMethod = 'delProtocolProcessor'
@@ -529,7 +529,9 @@ class Service(Elements):
         self.dhcpip = str(dhcpip.broadcast - 1)
         terminal = tcc.get('Terminals',self.terminal)
         protocolprocessor = tcc.get('ProtocolProcessors',terminal.protocolprocessor)
-        virtualRouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
+        print tcc.getByAttr('VirtualRouters','protocolprocessor',terminal.protocolprocessor)
+        virtualRouter = tcc.getByAttr('VirtualRouters','protocolprocessor',terminal.protocolprocessor)
+        #virtualRouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
         start = int(terminal.Id) * 10 - 10 + 1
         #svcId = self.findFreeId(start, 'Services', 'Terminals', self.name, terminal.name)
         svcId = self.findFreeSvcId(start, 'Services', 'Terminals', self.name, terminal.name)
@@ -560,7 +562,8 @@ class Service(Elements):
         service = tcc.get('Services',self.name)
         terminal = tcc.get('Terminals',args.terminal)
         protocolprocessor = tcc.get('ProtocolProcessors',terminal.protocolprocessor)
-        virtualrouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
+        #virtualrouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
+        virtualrouter = tcc.getByAttr('VirtualRouters','protocolprocessor',terminal.protocolprocessor)
         self.terminal = terminal.name
         self.customer = service.customer
         print service.show()['terminal']
@@ -606,7 +609,6 @@ class Endpoint(Elements):
         return result
 
 def sendData(data, host, port, action):
-    print 'bla'
     connection = 'http://' + host + ':' + port + '/' + action
     req = urllib2.Request(connection)
     req.add_header('Content-Type', 'application/json')

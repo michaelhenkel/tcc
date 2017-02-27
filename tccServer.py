@@ -16,6 +16,8 @@ import shutil
 import libvirt
 import time
 import uuid
+import netifaces
+import random
 from keystoneclient.v2_0 import client
 from netaddr import *
 from vnc_api import vnc_api
@@ -33,8 +35,17 @@ admin_tenant = 'admin'
 imageDirectory = '/var/lib/libvirt/images'
 scriptDirectory = '/var/lib/libvirt/scripts'
 definitionDirectory = '/var/lib/libvirt/definitions'
-imageTemplateFileName ='vivid-server-cloudimg-amd64-disk1.img'
+imageTemplateFileNamePP ='protocol_processor.qcow2'
+imageTemplateFileNameTE ='terminal.qcow2'
+imageTemplateFileNameVR ='virtual_router.qcow2'
 nfsServer = '192.168.1.1'
+
+def randomMAC():
+    mac = [ 0x52, 0x54, 0x00,
+        random.randint(0x00, 0x7f),
+        random.randint(0x00, 0xff),
+        random.randint(0x00, 0xff) ]
+    return ':'.join(map(lambda x: "%02x" % x, mac))
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -140,16 +151,31 @@ class Customer(object):
         return json.dumps({'status':'customer deleted'})
 
 def createImage(name, vmType, fileList, interfaceList, vsList=None):
+    print vmType
     if vmType == 'VirtualRouters':
-        imageTemplateFileName = 'trusty-server-cloudimg-amd64-disk1.img'
-    else:
-        imageTemplateFileName = 'vivid-server-cloudimg-amd64-disk1.img'
+        imageTemplateFileName = imageTemplateFileNameVR
+        ram='4000'
+        vcpus='2'
+    if vmType == 'ProtocolProccessors':
+        imageTemplateFileName = imageTemplateFileNamePP
+        ram='384'
+        vcpus='1'
+    if vmType == 'Terminals':
+        imageTemplateFileName = imageTemplateFileNameTE
+        ram='384'
+        vcpus='1'
     imageFile = imageDirectory + '/' + vmType + '/' + name + '.img'
     definitionTemplateFile = definitionDirectory + '/' + vmType + '/template.xml'
     definitionFile = definitionDirectory + '/' + vmType + '/' + name + '.xml'
     if os.path.isfile(imageFile):
         os.remove(imageFile)
+    eth0_mac = randomMAC()
+    interfaceMacList = {}
     for interface in interfaceList:
+        print "interface name: %s" % interface
+        if interface['name'] == 'vhost0':
+            print 'setting mac'
+            interface['mac'] = eth0_mac
         interfaceFileDict = createInterfaceConfiguration(name, interface)
         fileList.append(interfaceFileDict)
     hostnameFileDict = createHostname(name)
@@ -171,12 +197,33 @@ def createImage(name, vmType, fileList, interfaceList, vsList=None):
     f.close()
     defTempString = defTemp.replace('VMNAME',name)
     defTempString = defTempString.replace('IMAGEPATH',imageFile)
+    '''
     if vsList:
         for vs in vsList:
             defTempString = defTempString.replace(vs.keys()[0],vs.values()[0])
+    '''
     defFile = open(definitionFile, 'w')
     defFile.write(defTempString)
     defFile.close()
+    virtInstall = ['/usr/bin/virt-install',
+        '--name=%s' % name,
+        '--disk=%s' % imageFile,
+        '--vcpus=%s' % vcpus,
+        '--ram=%s' % ram,
+        '--network=network=br0,model=virtio,target=eth0_%s,mac=%s' % (name, eth0_mac),
+        '--virt-type=kvm',
+        '--import',
+        '--os-variant=ubuntu16.04',
+        '--graphics=vnc',
+        '--serial=pty',
+        '--noautoconsole',
+        '--console=pty,target_type=virtio']
+    if vsList:
+        for vs in vsList:
+            virtInstall.append('--network=network=%s,model=virtio,target=%s' % (vs['switchName'], vs['interfaceName']))
+    print virtInstall
+    subprocess.call(virtInstall)
+    '''
     conn = libvirt.open('qemu:///system')
     definedDomains = conn.listDefinedDomains()
     try:
@@ -193,8 +240,14 @@ def createImage(name, vmType, fileList, interfaceList, vsList=None):
         f.close()
         vmObj = conn.defineXML(xmlDef)
         status = vmObj.create()
+    '''
+    time.sleep(10)
     subprocess.call(['ifconfig','eth0_'+name,'mtu','9000'])
-    subprocess.call(['ifconfig','eth1_'+name,'mtu','9000'])
+    if vsList:
+        for vs in vsList:
+            while vs['interfaceName'] not in netifaces.interfaces():
+                print 'interface not there, yet' % vs['interfaceName']
+            subprocess.call(['ifconfig',vs['interfaceName'],'mtu','9000'])
 
 def destroyImage(name, vmType):
     definitionFile = definitionDirectory + '/' + vmType + '/' + name + '.xml'
@@ -225,7 +278,9 @@ def createInterfaceConfiguration(vmName, interface):
             if 'ipaddress' in interface:
                 interfaceString += 'iface ' + interface['name'] + ' inet static' + '\n'
                 if interface['Type'] == 'vhost':
+                    print 'interface: %s', interface
                     interfaceString += '    pre-up /opt/contrail/bin/if-vhost0\n'
+                    interfaceString += '    post-up ip link set vhost0 address ' + interface['mac'] + '\n'
                 interfaceString += '    address ' + interface['ipaddress'] + '\n'
                 interfaceString += '    netmask ' + interface['netmask'] + '\n'
                 if 'dns' in interface:
@@ -242,7 +297,7 @@ def createInterfaceConfiguration(vmName, interface):
     interfaceFile = open('/tmp/' + vmName + '_' + interface['name'],'w')
     interfaceFile.write(interfaceString)
     interfaceFile.close()
-    return { 'src' : '/tmp/' + vmName + '_' + interface['name'], 'dst' : '/etc/network/interfaces.d/' + interface['name'] + '.cfg' }
+    return { 'src' : '/tmp/' + vmName + '_' + interface['name'], 'dst' : '/etc/network/interfaces.d/' + interface['name'] + '.cfg'}
 
 def createHostname(vmName):
     hostNameFile = open('/tmp/' + vmName + '_hostname','w')
@@ -260,13 +315,16 @@ class Terminal(object):
         terminalServerFileDict = { 'src' : scriptDirectory + '/Terminals/terminalServer.py', 'dst' : '/terminalServer.py' }
         fileList.append(terminalServerFileDict)
         interfaceList = []
-        intEth0 = { 'name':'eth0','ipaddress':self.terminalObject['ipaddress'],'dns':self.terminalObject['mgmtDns'],'netmask':self.terminalObject['mgmtNetmask'],'gateway':self.terminalObject['mgmtGateway'], 'Type':'l3'}
-        intEth1 = { 'name':'eth1','ipaddress':self.terminalObject['vxlanip'],'netmask':self.terminalObject['vxlanNetmask'],'Type':'l3','Mtu':'9000'}
-        intBr0 = { 'name':'br0','Type':'ovs','Ports': ['eth1']}
+        vsList = []
+        intEth0 = { 'name':'ens3','ipaddress':self.terminalObject['ipaddress'],'dns':self.terminalObject['mgmtDns'],'netmask':self.terminalObject['mgmtNetmask'],'gateway':self.terminalObject['mgmtGateway'], 'Type':'l3'}
+        intEth1 = { 'name':'ens4','ipaddress':self.terminalObject['vxlanip'],'netmask':self.terminalObject['vxlanNetmask'],'Type':'l3','Mtu':'9000'}
+        intBr0 = { 'name':'br0','Type':'ovs','Ports': ['ens4']}
         interfaceList.append(intEth0)
         interfaceList.append(intEth1)
         interfaceList.append(intBr0)
-        createImage(self.terminalObject['name'], 'Terminals', fileList, interfaceList)
+        vs_eth1 = { 'interfaceName': 'eth1_' + self.terminalObject['name'] , 'switchName' : "vs-pp" }
+        vsList.append(vs_eth1)
+        createImage(self.terminalObject['name'], 'Terminals', fileList, interfaceList, vsList=vsList)
         return json.dumps({'status':'created Terminal'})
     def delete(self):
         destroyImage(self.terminalObject['name'], 'Terminals')
@@ -305,8 +363,8 @@ class VirtualRouter(object):
         fileList = []
         vsList = []
         interfaceList = []
-        vs1 = { 'VS' : "vs-" + self.vrObject['name'] }
-        vsList.append(vs1)
+        vs_eth1 = { 'interfaceName': 'eth1_' + self.vrObject['name'] , 'switchName' : "vs-" + self.vrObject['protocolprocessor'] }
+        vsList.append(vs_eth1)
         cidrIp = IPNetwork(self.vrObject['ipaddress'] + '/' + self.vrObject['mgmtNetmask'])
         cidrIp = str(cidrIp)
         vrouterAgentString = """[CONTROL-NODE]
@@ -320,7 +378,7 @@ port=5998
 server=""" + api_server + """
 [DNS]
 [HYPERVISOR]
-vmware_physical_interface=default-global-system-config:""" + self.vrObject['name'] + """:eth1
+vmware_physical_interface=default-global-system-config:""" + self.vrObject['name'] + """:ens4
 [FLOWS]
 [METADATA]
 [NETWORKS]
@@ -329,7 +387,7 @@ control_network_ip=""" + self.vrObject['ipaddress'] + """
 name=vhost0
 ip=""" + cidrIp + """
 gateway=""" + self.vrObject['mgmtGateway'] + """
-physical_interface=eth0
+physical_interface=ens3
 compute_node_address = """ + self.vrObject['ipaddress'] + """
 [GATEWAY-0]
 [GATEWAY-1]
@@ -343,19 +401,18 @@ docker_command=/usr/bin/opencontrail-vrouter-docker"""
         fileList.append(vrouterAgentDictFile)
         vrScriptDict = { 'src' : scriptDirectory + '/VirtualRouters/addPhysicalInterface.py', 'dst' : '/addPhysicalInterface.py' }
         fileList.append(vrScriptDict)
-        intEth0 = { 'name':'eth0','Type':'vhost','Mtu':'9000'}
-        intEth1 = { 'name':'eth1', 'Type':'l2' ,'Mtu':'9000'}
+        intEth0 = { 'name':'ens3','Type':'vhost','Mtu':'9000','mac': randomMAC()}
+        intEth1 = { 'name':'ens4', 'Type':'l2' ,'Mtu':'9000'}
         intVhost0 = { 'name':'vhost0','ipaddress':self.vrObject['ipaddress'],'dns':self.vrObject['mgmtDns'],'netmask':self.vrObject['mgmtNetmask'],'gateway':self.vrObject['mgmtGateway'],'Type':'vhost', 'Mtu':'9000'}
         interfaceList.append(intEth0)
         interfaceList.append(intEth1)
         interfaceList.append(intVhost0)
-        subprocess.call(["ovs-vsctl", "del-br", "vs-" + self.vrObject['name']])
-        subprocess.call(["ovs-vsctl", "add-br", "vs-" + self.vrObject['name']])
         createImage(self.vrObject['name'], 'VirtualRouters', fileList, interfaceList, vsList=vsList)
         return json.dumps({'status':'created Virtual Router'})
     def delete(self):
+        '''
         try:
-            phInt = self.getPhysicalInterface(self.vrObject['name'],'eth1')
+            phInt = self.getPhysicalInterface(self.vrObject['name'],'ens4')
         except:
             print 'cannot get physical interface'
         try:
@@ -390,6 +447,7 @@ docker_command=/usr/bin/opencontrail-vrouter-docker"""
             print 'cannot delete virtual router'
         destroyImage(self.vrObject['name'], 'VirtualRouters')
         subprocess.call(["ovs-vsctl", "del-br", "vs-" + self.vrObject['name']])
+        '''
         return json.dumps({'status':'deleted Virtual Router'})
     def show(self):
         return json.dumps({'status':'deleted Virtual Router'})
@@ -401,10 +459,10 @@ class ProtocolProcessor(object):
         fileList = []
         vsList = []
         interfaceList = []
-        intEth0 = { 'name':'eth0','ipaddress':self.ppObject['ipaddress'],'dns':self.ppObject['mgmtDns'],'netmask':self.ppObject['mgmtNetmask'],'gatweway':self.ppObject['mgmtGateway'], 'Type':'l3'}
-        intEth1 = { 'name':'eth1','ipaddress':self.ppObject['vxlanip'],'netmask':self.ppObject['vxlanNetmask'], 'Type':'l3','Mtu':'9000'}
-        intEth2 = { 'name':'eth2', 'Bridge':'br0', 'Type':'l2','Mtu':'9000'}
-        intBr0 = { 'name':'br0','Type':'ovs','Ports': ['eth2']}
+        intEth0 = { 'name':'ens3','ipaddress':self.ppObject['ipaddress'],'dns':self.ppObject['mgmtDns'],'netmask':self.ppObject['mgmtNetmask'],'gatweway':self.ppObject['mgmtGateway'], 'Type':'l3'}
+        intEth1 = { 'name':'ens4','ipaddress':self.ppObject['vxlanip'],'netmask':self.ppObject['vxlanNetmask'], 'Type':'l3','Mtu':'9000'}
+        intEth2 = { 'name':'ens5', 'Bridge':'br0', 'Type':'l2','Mtu':'9000'}
+        intBr0 = { 'name':'br0','Type':'ovs','Ports': ['ens5']}
         interfaceList.append(intEth0)
         interfaceList.append(intEth1)
         interfaceList.append(intEth2)
@@ -417,8 +475,10 @@ class ProtocolProcessor(object):
         fileList.append(ppServerFileDict3)
         ppServerFileDict4 = { 'src' : scriptDirectory + '/ProtocolProcessors/dhcpscript.sh', 'dst' : '/dhcpscript.sh' }
         fileList.append(ppServerFileDict4)
-        vs1 = { 'VS2' : "vs-" + self.ppObject['virtualrouter'] }
-        vsList.append(vs1)
+        vs_eth1 = { 'interfaceName': 'eth1_' + self.ppObject['name'] , 'switchName' : "vs-pp" }
+        vs_eth2 = { 'interfaceName': 'eth2_' + self.ppObject['name'] , 'switchName' : "vs-" + self.ppObject['name'] }
+        vsList.append(vs_eth1)
+        vsList.append(vs_eth2)
         fstabString = 'LABEL=cloudimg-rootfs	/	 ext4	defaults	0 0\n'
         fstabString += nfsServer + ':/home/lease /mnt nfs rw 0 0\n'
         f = open('/tmp/'+self.ppObject['name']+'_fstab', 'w')
@@ -426,10 +486,25 @@ class ProtocolProcessor(object):
         f.close()
         fstabDict = { 'src':'/tmp/'+self.ppObject['name']+'_fstab','dst':'/etc/fstab' }
         fileList.append(fstabDict)
+        subprocess.call(["ovs-vsctl", "del-br", "vs-" + self.ppObject['name']])
+        subprocess.call(["ovs-vsctl", "add-br", "vs-" + self.ppObject['name']])
+        virshNetXml = '<network>\n'
+        virshNetXml += '<name>vs-%s</name>\n' % self.ppObject['name']
+        virshNetXml += '<forward mode=\'bridge\'/>\n'
+        virshNetXml += '<bridge name=\'vs-%s\'/>\n' % self.ppObject['name']
+        virshNetXml += '<virtualport type=\'openvswitch\'/>\n'
+        virshNetXml += '</network>'
+        conn = libvirt.open('qemu:///system')
+        network = conn.networkDefineXML(virshNetXml)
+        network.create()
+        network.isActive()
+        network.setAutostart(True)
         createImage(self.ppObject['name'], 'ProtocolProcessors', fileList, interfaceList, vsList=vsList)
         return json.dumps({'status':'created Protocol Processor'})
     def delete(self):
         destroyImage(self.ppObject['name'], 'ProtocolProcessors')
+        subprocess.call(["/usr/bin/virsh","net-destroy","vs-%s" % self.ppObject['name']])
+        subprocess.call(["/usr/bin/virsh","net-undefine","vs-%s" % self.ppObject['name']])
         return json.dumps({'status':'deleted Protocol Processor'})
     def show(self):
         return json.dumps({'status':'deleted Terminal'})

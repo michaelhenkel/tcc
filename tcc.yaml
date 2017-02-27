@@ -1,17 +1,46 @@
 Network:
   mgmt:
     netmask: 255.255.255.0
-    gateway: 192.168.1.254
-    dns: 192.168.1.254
+    gateway: 192.168.1.1
+    dns: 8.8.8.8
   vxlan:
     netmask: 255.255.255.0
 Customers:
 - name: cust1
-  back_refs: []
+  back_refs: [svc1, svc1, svc1]
 - name: cust2
   back_refs: []
 VirtualRouters:
+- name: vr1
+  ipaddress: 192.168.1.70
+  protocolprocessor: pp1
+  host: 192.168.1.1
+  back_refs: []
+- name: vr2
+  ipaddress: 192.168.1.71
+  protocolprocessor: pp1
+  host: 192.168.1.1
+  back_refs: []
 ProtocolProcessors:
+- name: pp1
+  ipaddress: 192.168.1.80
+  host: 192.168.1.1
+  vxlanip: 10.0.0.1
+  back_refs: [vr1, vr2, t1]
 Terminals:
+- name: t1
+  ipaddress: 192.168.1.90
+  host: 192.168.1.1
+  vxlanip: 10.0.0.10
+  protocolprocessor: pp1
+  back_refs: [svc1, svc1, svc1]
+  Id: 1
 Services:
+- name: svc1
+  terminal:
+  - t1: 1
+  customer: cust1
+  routetarget: '1:1'
+  subnet: 1.0.0.0/24
+  back_refs: []
 Endpoints:

@@ -24,7 +24,7 @@ api_port='8082'
 admin_user = 'admin'
 admin_password = 'contrail123'
 admin_tenant = 'admin'
-serviceInterface = 'eth1'
+serviceInterface = 'ens4'
 vnc_client = vnc_api.VncApi(
             username = admin_user,
             password = admin_password,
@@ -319,7 +319,7 @@ def get_ip_address(ifname):
         struct.pack('256s', ifname[:15])
     )[20:24])
 
-HOST = get_ip_address('eth0')
+HOST = get_ip_address('ens3')
 PORT = 6666
 
 if __name__ == "__main__":
