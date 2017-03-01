@@ -46,6 +46,7 @@ create_parser.add_argument('-host','--host')
 create_parser.add_argument('-f','--yamlfile')
 create_parser.add_argument('-vr','--virtualrouter')
 create_parser.add_argument('-et','--endpointtype')
+create_parser.add_argument('-m','--mode')
 
 add_parser = subparsers.add_parser('add', help = "del help")
 add_parser.add_argument('type')
@@ -510,6 +511,7 @@ class Service(Elements):
         self.mandatoryAttributes = CommentedMap([( 'name' , 'unique' ),
                                                  ( 'terminal', 'ref'),
                                                  ( 'customer', 'ref'),
+                                                 ( 'mode', None),
                                                  ( 'routetarget', None),
                                                  ( 'subnet', None)])
         self.back_refs = []
@@ -561,6 +563,7 @@ class Service(Elements):
     def delService(self):
         service = tcc.get('Services',self.name)
         terminal = tcc.get('Terminals',args.terminal)
+        print terminal
         protocolprocessor = tcc.get('ProtocolProcessors',terminal.protocolprocessor)
         #virtualrouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
         virtualrouter = tcc.getByAttr('VirtualRouters','protocolprocessor',terminal.protocolprocessor)

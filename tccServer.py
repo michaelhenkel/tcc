@@ -369,16 +369,11 @@ class VirtualRouter(object):
         cidrIp = str(cidrIp)
         vrouterAgentString = """[CONTROL-NODE]
 [DEFAULT]
-agent_mode=vmware-vrouter
+server=""" + api_server + """
 log_file=/var/log/contrail/contrail-vrouter-agent.log
 log_level=SYS_NOTICE
 log_local=1
-[DISCOVERY]
-port=5998
-server=""" + api_server + """
 [DNS]
-[HYPERVISOR]
-vmware_physical_interface=default-global-system-config:""" + self.vrObject['name'] + """:ens4
 [FLOWS]
 [METADATA]
 [NETWORKS]

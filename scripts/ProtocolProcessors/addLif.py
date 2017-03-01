@@ -24,13 +24,19 @@ if os.path.exists( "/tmp/addlif.socket" ):
 server = socket.socket( socket.AF_UNIX, socket.SOCK_DGRAM )
 server.bind("/tmp/addlif.socket")
 
-def createVirtualMachineInterface(tenant, vnName, mac):
+def createVirtualMachineInterface(tenant, vnName, mac=None, bd=None):
     project = vnc_client.project_read(fq_name_str = 'default-domain:' + tenant)
     vn = vnc_client.virtual_network_read(fq_name_str = 'default-domain:' + tenant + ':' + vnName)
-    vmIntMac = { 'mac_address' : [ mac ] }
+    #vmIntMac = { 'mac_address' : [ mac ] }
     vmIntUUID = str(uuid.uuid4())
-    vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project, virtual_machine_interface_mac_addresses = vmIntMac)
+    #vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project, virtual_machine_interface_mac_addresses = vmIntMac)
+    vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project)
     vmIntObj.set_virtual_network(vn)
+    if bd:
+        bridge_domain = vnc_client.bridge_domain_read(id=bd[0]['uuid'])
+        bmem=vnc_api.BridgeDomainMembershipType(vlan_tag=0)
+        vmIntObj.add_bridge_domain(bridge_domain,bmem)
+        vmIntObj.set_virtual_machine_interface_disable_policy(True)
     print vn.get_uuid()
     try:
         vmIntObjResult = vnc_client.virtual_machine_interface_create(vmIntObj)
@@ -53,7 +59,7 @@ def getVirtualNetwork(tenant, vnName):
     vn = vnc_client.virtual_network_read(fq_name_str = 'default-domain:' + tenant + ':' + vnName)
     return vn
 
-def getPhysicalInterface(virtualRouter, interfaceName='eth1'):
+def getPhysicalInterface(virtualRouter, interfaceName='ens4'):
     phIntList = vnc_client.physical_interfaces_list()['physical-interfaces']
     for phInt in phIntList:
         if phInt['fq_name'][1] == virtualRouter and phInt['fq_name'][2] == interfaceName:
@@ -110,6 +116,7 @@ def actionLif(data):
         tenant = svc_lif.split('__')[2]
         svcId = svc_lif.split('__')[3]
         vn = getVirtualNetwork(tenant, vnName)
+        bd = vn.get_bridge_domains()
         physicalInterface = getPhysicalInterface(vr)
         logicalInterface = getLogicalInterface(physicalInterface, vnName + '_' + svcId)
         if logicalInterface.get_virtual_machine_interface_refs():
@@ -122,7 +129,12 @@ def actionLif(data):
                         if instIpObj.get_instance_ip_address() == ip:
                             already_exists = True
         if not already_exists and not lif_has_vmi:
-            vmInterface = createVirtualMachineInterface(tenant, vnName, mac)
+            if bd:
+                #vmInterface = createVirtualMachineInterface(tenant, vnName, mac, bd=bd)
+                vmInterface = createVirtualMachineInterface(tenant, vnName, bd=bd)
+            else:
+                #vmInterface = createVirtualMachineInterface(tenant, vnName, mac)
+                vmInterface = createVirtualMachineInterface(tenant, vnName)
             instanceIp = createInstanceIp(ip, vmInterface, vn)
             logicalInterface.add_virtual_machine_interface(vmInterface)
             vnc_client.logical_interface_update(logicalInterface)
