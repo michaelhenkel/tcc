@@ -120,29 +120,6 @@ def actionLif(data):
         physicalInterface = getPhysicalInterface(vr)
         logicalInterface = getLogicalInterface(physicalInterface, vnName + '_' + svcId)
         if logicalInterface.get_virtual_machine_interface_refs():
-            lif_has_vmi = True
-            for vmInt in logicalInterface.get_virtual_machine_interface_refs():
-                vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
-                if vmIntObj.virtual_machine_interface_mac_addresses.mac_address[0] == mac:
-                    for instIp in vmIntObj.get_instance_ip_back_refs():
-                        instIpObj = vnc_client.instance_ip_read(id = instIp['uuid'])
-                        if instIpObj.get_instance_ip_address() == ip:
-                            already_exists = True
-        if not already_exists and not lif_has_vmi:
-            if bd:
-                #vmInterface = createVirtualMachineInterface(tenant, vnName, mac, bd=bd)
-                vmInterface = createVirtualMachineInterface(tenant, vnName, bd=bd)
-            else:
-                #vmInterface = createVirtualMachineInterface(tenant, vnName, mac)
-                vmInterface = createVirtualMachineInterface(tenant, vnName)
-            instanceIp = createInstanceIp(ip, vmInterface, vn)
-            logicalInterface.add_virtual_machine_interface(vmInterface)
-            vnc_client.logical_interface_update(logicalInterface)
-            vmi_created = True
-        else:
-            print 'interface already exists'
-        if not already_exists and lif_has_vmi:
-            print 'blabla'
             for vmInt in logicalInterface.get_virtual_machine_interface_refs():
                 vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
                 if vmIntObj.get_virtual_machine_interface_allowed_address_pairs():
@@ -153,7 +130,7 @@ def actionLif(data):
                         for ap in allowedAddressPair:
                             if ap.get_mac() == mac and ap.get_ip().ip_prefix == ip:
                                 allowed_address_pair_exists = True
-        if not allowed_address_pair_exists and not vmi_created:
+        if not allowed_address_pair_exists:
             if not allowed_address_pairs_exists:
                 allowedAddressPairs = vnc_api.AllowedAddressPairs()
             ip = {'ip_prefix':ip,'ip_prefix_len':32}
@@ -163,26 +140,14 @@ def actionLif(data):
             vnc_client.virtual_machine_interface_update(vmIntObj)
                  
     if oper == 'del':
-       vmInt = getVirtualMachineInterface(mac)
-       if vmInt:
-           if vmInt.get_instance_ip_back_refs():
-               for instIp in vmInt.get_instance_ip_back_refs():
-                   vnc_client.instance_ip_delete(id=instIp['uuid'])
-           if vmInt.get_logical_interface_back_refs():
-               for logicalInterface in vmInt.get_logical_interface_back_refs():
-                   logInt = vnc_client.logical_interface_read(id = logicalInterface['uuid'])
-               logInt.del_virtual_machine_interface(vmInt)
-               vnc_client.logical_interface_update(logInt)
-           vnc_client.virtual_machine_interface_delete(id = vmInt.get_uuid())
-       else:
-           allowedApList = getAllowedAddressPair(mac, ip) 
-           if allowedApList:
-               vmIntObj = allowedApList[0]
-               allowedAddressPairs = allowedApList[1]
-               ap = allowedApList[2]
-               allowedAddressPairs.delete_allowed_address_pair(ap)
-               vmIntObj.set_virtual_machine_interface_allowed_address_pairs(allowedAddressPairs)
-               vnc_client.virtual_machine_interface_update(vmIntObj)
+        allowedApList = getAllowedAddressPair(mac, ip) 
+        if allowedApList:
+            vmIntObj = allowedApList[0]
+            allowedAddressPairs = allowedApList[1]
+            ap = allowedApList[2]
+            allowedAddressPairs.delete_allowed_address_pair(ap)
+            vmIntObj.set_virtual_machine_interface_allowed_address_pairs(allowedAddressPairs)
+            vnc_client.virtual_machine_interface_update(vmIntObj)
 
 while True:
     try:
