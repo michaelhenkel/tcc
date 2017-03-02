@@ -2,7 +2,10 @@ import sys
 import socket
 import os, os.path
 
-data = sys.argv[1] + ' ' + sys.argv[2] + ' ' + sys.argv[3] + ' ' + sys.argv[4] + ' ' + sys.argv[5]
+if sys.argv[1] == 'del':
+    data = sys.argv[1] + ' ' + sys.argv[2] + ' ' + sys.argv[3]
+else:
+    data = sys.argv[1] + ' ' + sys.argv[2] + ' ' + sys.argv[3] + ' ' + sys.argv[4] + ' ' + sys.argv[5]
  
 print "Connecting..."
 if os.path.exists( "/tmp/addlif.socket" ):

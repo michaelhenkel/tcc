@@ -7,7 +7,7 @@ Network:
     netmask: 255.255.255.0
 Customers:
 - name: cust1
-  back_refs: [svc1, svc2, svc3, svc4]
+  back_refs: [svc1, svc2, svc3, svc4, svc5]
 - name: cust2
   back_refs: []
 VirtualRouters:
@@ -33,7 +33,7 @@ Terminals:
   host: 192.168.1.1
   vxlanip: 10.0.0.10
   protocolprocessor: pp1
-  back_refs: [svc1, svc2, svc3, svc4]
+  back_refs: [svc1, svc2, svc3, svc4, svc5]
   Id: 1
 Services:
 - name: svc1
@@ -68,6 +68,14 @@ Services:
   routetarget: '1:4'
   subnet: 4.0.0.0/24
   back_refs: []
+- name: svc5
+  terminal:
+  - t1: 5
+  customer: cust1
+  mode: l3
+  routetarget: '1:5'
+  subnet: 5.0.0.0/24
+  back_refs: [ep51]
 Endpoints:
 - name: ep10
   endpointtype: ns
@@ -77,3 +85,7 @@ Endpoints:
   endpointtype: ns
   terminal: t1
   service: svc1
+- name: ep51
+  endpointtype: ns
+  terminal: t1
+  service: svc5

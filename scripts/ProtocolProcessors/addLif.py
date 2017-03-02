@@ -98,13 +98,14 @@ def getAllowedAddressPair(mac, ip):
                         return [vmIntObj, allowedAddressPairs, ap]
 
 def actionLif(data):
+    print "data: %s" % data
     args = data.split(' ')
     oper = args[0]
     mac = args[1]
     ip = args[2]
-    terminal = args[3]
     if oper == 'add':
-        already_exists = False
+        terminal = args[3]
+        instanceIp_already_exists = False
         lif_has_vmi = False
         allowed_address_pair_exists = False
         allowed_address_pairs_exists = False
@@ -122,32 +123,47 @@ def actionLif(data):
         if logicalInterface.get_virtual_machine_interface_refs():
             for vmInt in logicalInterface.get_virtual_machine_interface_refs():
                 vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
-                if vmIntObj.get_virtual_machine_interface_allowed_address_pairs():
-                    allowed_address_pairs_exists = True
+                if not vmIntObj.get_instance_ip_back_refs():
+                    instanceIp = createInstanceIp(ip, vmIntObj, vn)
+                    vmIntMac = { 'mac_address' : [ mac ] }
+                    vmIntObj.set_virtual_machine_interface_mac_addresses(vmIntMac)
+                    vnc_client.virtual_machine_interface_update(vmIntObj)
+                    print "no inst ip on vmi"
+                elif  vmIntObj.get_virtual_machine_interface_allowed_address_pairs():
                     allowedAddressPairs = vmIntObj.get_virtual_machine_interface_allowed_address_pairs()
-                    if allowedAddressPairs.get_allowed_address_pair():
-                        allowedAddressPair = allowedAddressPairs.get_allowed_address_pair()
-                        for ap in allowedAddressPair:
-                            if ap.get_mac() == mac and ap.get_ip().ip_prefix == ip:
-                                allowed_address_pair_exists = True
-        if not allowed_address_pair_exists:
-            if not allowed_address_pairs_exists:
-                allowedAddressPairs = vnc_api.AllowedAddressPairs()
-            ip = {'ip_prefix':ip,'ip_prefix_len':32}
-            addrPair = vnc_api.AllowedAddressPair(ip=ip, mac=mac, address_mode='active-standby')
-            allowedAddressPairs.add_allowed_address_pair(addrPair)
-            vmIntObj.set_virtual_machine_interface_allowed_address_pairs(allowedAddressPairs)
-            vnc_client.virtual_machine_interface_update(vmIntObj)
+                    allowed_address_pairs_exists = True
+                    print "aa pairs exist"
+                else:
+                    allowedAddressPairs = vnc_api.AllowedAddressPairs()
+                    allowed_address_pairs_exists = True
+                    print "aa pair dont exist"
+            if allowed_address_pairs_exists:
+                ip = {'ip_prefix':ip,'ip_prefix_len':32}
+                addrPair = vnc_api.AllowedAddressPair(ip=ip, mac=mac, address_mode='active-standby')
+                allowedAddressPairs.add_allowed_address_pair(addrPair)
+                vmIntObj.set_virtual_machine_interface_allowed_address_pairs(allowedAddressPairs)
+                vnc_client.virtual_machine_interface_update(vmIntObj)
+            #logicalInterface.delete_virtual_machine_interface(vmIntObj)
+            #logicalInterface.add_virtual_machine_interface(vmIntObj)
+            #vnc_client.logical_interface_update(logicalInterface)
+            
                  
     if oper == 'del':
-        allowedApList = getAllowedAddressPair(mac, ip) 
-        if allowedApList:
-            vmIntObj = allowedApList[0]
-            allowedAddressPairs = allowedApList[1]
-            ap = allowedApList[2]
-            allowedAddressPairs.delete_allowed_address_pair(ap)
-            vmIntObj.set_virtual_machine_interface_allowed_address_pairs(allowedAddressPairs)
-            vnc_client.virtual_machine_interface_update(vmIntObj)
+        vmInt = getVirtualMachineInterface(mac)
+        if vmInt:
+            if vmInt.get_instance_ip_back_refs():
+                for instIp in vmInt.get_instance_ip_back_refs():
+                    vnc_client.instance_ip_delete(id=instIp['uuid'])
+        else:
+            allowedApList = getAllowedAddressPair(mac, ip) 
+            if allowedApList:
+                print "found aap list"
+                vmIntObj = allowedApList[0]
+                allowedAddressPairs = allowedApList[1]
+                ap = allowedApList[2]
+                allowedAddressPairs.delete_allowed_address_pair(ap)
+                vmIntObj.set_virtual_machine_interface_allowed_address_pairs(allowedAddressPairs)
+                vnc_client.virtual_machine_interface_update(vmIntObj)
 
 while True:
     try:

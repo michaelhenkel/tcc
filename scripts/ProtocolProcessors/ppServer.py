@@ -144,6 +144,8 @@ def createVirtualMachineInterface(tenant, vnName):
     vn = vnc_client.virtual_network_read(fq_name_str = 'default-domain:' + tenant + ':' + vnName)
     #vmIntMac = { 'mac_address' : [ mac ] }
     vmIntUUID = str(uuid.uuid4())
+    instIpUUID = str(uuid.uuid4())
+    ipInst = vnc_api.InstanceIp(name = instIpUUID)
     #vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project, virtual_machine_interface_mac_addresses = vmIntMac)
     bd = vn.get_bridge_domains()
     vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project)
@@ -159,6 +161,9 @@ def createVirtualMachineInterface(tenant, vnName):
     except:
         print 'cannot create vmi'
     vmIntObj = vnc_client.virtual_machine_interface_read(id = vmIntObjResult)
+    ipInst.set_virtual_machine_interface(vmIntObj)
+    ipInst.set_virtual_network(vn)
+    vnc_client.instance_ip_create(ipInst)
     return vmIntObj
 
 def createTerminal(terminal):
@@ -301,11 +306,12 @@ def deleteService(data):
         except:
             print 'nothing to kill'
     netns.remove(name + '_' + str(svcId))
-    ip_host = IPDB()
-    time.sleep(3)
-    if name + '_' + str(svcId) in ip_host.interfaces:
-        with ip_host.interfaces[name + '_' + str(svcId)] as veth:
-            veth.remove()
+    subprocess.call(['ip','link','del','dev',name + '_' + str(svcId)])
+    #time.sleep(3)
+    #ip_host = IPDB()
+    #if name + '_' + str(svcId) in ip_host.interfaces:
+    #    with ip_host.interfaces[name + '_' + str(svcId)] as veth:
+    #        veth.remove()
     subprocess.call(["ovs-vsctl", "del-port", "br0", name + '_' + str(svcId)])
     if not move:
         if delvn:
