@@ -10,6 +10,7 @@ admin_user = 'admin'
 admin_password = 'contrail123'
 admin_tenant = 'admin'
 serviceInt = 'ens4'
+lifCount = 20
 vnc_client = vnc_api.VncApi(
             username = admin_user,
             password = admin_password,
@@ -29,10 +30,16 @@ def get_ip_address(ifname):
     )[20:24])
 vrIp = get_ip_address('vhost0')
 
+def createLogicalInterface(physicalInterface, serviceInterface, serviceVid):
+    lif = vnc_api.LogicalInterface(name = serviceInterface, parent_obj = physicalInterface, logical_interface_vlan_tag = int(serviceVid), logical_interface_type = 'l2')
+    lifResult = vnc_client.logical_interface_create(lif)
+    lif = vnc_client.logical_interface_read(id=lifResult)
+    return lif
+
 project = vnc_client.project_read(fq_name_str = 'default-domain:' + admin_tenant)
 virtualRouter = vnc_api.VirtualRouter(fq_name = [ 'default-global-system-config',vrName],
                                       name = vrName,
-                                      virtual_router_type = [ 'embedded'],
+                                      virtual_router_type = 'embedded',
                                       virtual_router_ip_address = vrIp)
 virtualRouterObject = vnc_client.virtual_router_create(virtualRouter)
 physicalRouter = vnc_api.PhysicalRouter(fq_name_str = 'default-global-system-config:'+vrName,
@@ -42,3 +49,8 @@ physicalRouter.add_virtual_router(ref_obj = virtualRouter)
 physicalRouterObj = vnc_client.physical_router_create(physicalRouter)
 phIntObj = vnc_api.PhysicalInterface(name = serviceInt, parent_obj = physicalRouter)
 phIntResult = vnc_client.physical_interface_create(phIntObj)
+phIntObj = vnc_client.physical_interface_read(id=phIntResult)
+for vid in range(1,lifCount):
+    lifName = 'lif_' + str(vid)
+    lif = vnc_api.LogicalInterface(name = lifName, parent_obj = phIntObj, logical_interface_vlan_tag = vid, logical_interface_type = 'l2')
+    lifResult = vnc_client.logical_interface_create(lif)

@@ -47,7 +47,7 @@ class Handler(BaseHTTPRequestHandler):
         data = json.loads(self.data_string)
         if self.path == '/createService':
             print data
-            result = createService(data['name'],data['terminal'], data['Id'])
+            result = createService(data['name'],data['terminal'], data['Id'],data['cvlan'])
             self.request.sendall(result)
         if self.path == '/changeService':
             print data
@@ -80,7 +80,7 @@ def copyDirectory(src, dest):
     except OSError as e:
         print('Directory not copied. Error: %s' % e)
 
-def createService(name, terminalName, svcId):
+def createService(name, terminalName, svcId, cvlan=None):
     subprocess.call(["ovs-vsctl", "add-br", "vs-" + name])
     if_svc_name = name
     if_terminal_name = name + '_' + terminalName
@@ -91,9 +91,16 @@ def createService(name, terminalName, svcId):
     with ip_host.interfaces[if_terminal_name] as veth:
         veth.up()
     ip_host.release()
-    subprocess.call(["ovs-vsctl", "add-port", "vs-" + name, if_svc_name])
-    subprocess.call(["ovs-vsctl", "add-port", "br0", if_terminal_name])
-    subprocess.call(["ovs-vsctl", "set", "port", if_terminal_name, "tag=" + str(svcId)])
+    if cvlan is not 0:
+        subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId),'link', if_svc_name,'type','vlan','id',str(svcId)])
+        subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'link', if_svc_name + '.' + str(svcId) ,'type','vlan','id',str(cvlan)])
+        subprocess.call(["ovs-vsctl", "add-port", "br0", if_terminal_name])
+        subprocess.call(["ovs-vsctl", "set", "port", if_terminal_name, "trunk=" + str(svcId)])
+        subprocess.call(["ovs-vsctl", "add-port", "vs-" + name, if_svc_name + '.' + str(svcId) + '.' + str(cvlan)])
+    else:
+        subprocess.call(["ovs-vsctl", "add-port", "br0", if_terminal_name])
+        subprocess.call(["ovs-vsctl", "set", "port", if_terminal_name, "tag=" + str(svcId)])
+        subprocess.call(["ovs-vsctl", "add-port", "vs-" + name, if_svc_name])
     return json.dumps({ 'status' : 'created service'})
 
 def moveTerminal(data):
@@ -131,7 +138,8 @@ def createEndpoint(name, svcName, endpointtype):
         subprocess.call(["ovs-vsctl", "add-port", "vs-" + svcName, name + '_' + svcName])
         ip_host.release()
         ip_ns.release()
-        nsp = NSPopen(name, ['dhclient', '-lf', '/tmp/' + name + '.lease', name], stdout=subprocess.PIPE)
+        #nsp = NSPopen(name, ['dhclient', '-lf', '/tmp/' + name + '.lease', name], stdout=subprocess.PIPE)
+        nsp = NSPopen(name, ['dhclient', name], stdout=subprocess.PIPE)
         nsp.wait()
         nsp.release()
     if endpointtype == 'lxc':
@@ -174,9 +182,13 @@ def deleteEndpoint(name, svcName, endpointtype):
         nsp.release()
         netns.remove(name)
         ip_host = IPDB()
-        if name + '_' + svcName in ip_host.interfaces:
-            with ip_host.interfaces[name + '_' + svcName] as veth:
-                veth.remove()
+        subprocess.call(['ip','link','del','dev',name + '_' + svcName])
+        #if name + '_' + svcName in ip_host.interfaces:
+        #    with ip_host.interfaces[name + '_' + svcName] as veth:
+        #        try:
+        #            veth.remove()
+        #        except:
+        #            print "delete failed for %s" % name + '_' + svcName
         subprocess.call(["ovs-vsctl", "del-port", "vs-" + svcName, name + '_' + svcName])
     if endpointtype == 'lxc':
         subprocess.call(['/usr/bin/lxc-stop','-n',name])
@@ -201,7 +213,7 @@ def setTunnel():
     result = SendHTTPData(data=data, method='POST',HOST='192.168.1.1',PORT='6666',action='pullTerminalConfig').send()
     subprocess.call(['ovs-vsctl', 'add-port', 'br0', result['pp'], '--', 'set', 'interface', result['pp'], 'type=vxlan', 'options:remote_ip='+result['ip']])
 
-HOST = get_ip_address('eth0')
+HOST = get_ip_address('ens3')
 PORT = 6666
 
 if __name__ == "__main__":

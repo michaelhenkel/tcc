@@ -47,6 +47,7 @@ create_parser.add_argument('-f','--yamlfile')
 create_parser.add_argument('-vr','--virtualrouter')
 create_parser.add_argument('-et','--endpointtype')
 create_parser.add_argument('-m','--mode')
+create_parser.add_argument('-cv','--cvlan')
 
 add_parser = subparsers.add_parser('add', help = "del help")
 add_parser.add_argument('type')
@@ -512,6 +513,7 @@ class Service(Elements):
                                                  ( 'terminal', 'ref'),
                                                  ( 'customer', 'ref'),
                                                  ( 'mode', None),
+                                                 ( 'cvlan', None),
                                                  ( 'routetarget', None),
                                                  ( 'subnet', None)])
         self.back_refs = []

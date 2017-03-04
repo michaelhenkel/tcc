@@ -118,34 +118,37 @@ def actionLif(data):
         svcId = svc_lif.split('__')[3]
         vn = getVirtualNetwork(tenant, vnName)
         bd = vn.get_bridge_domains()
-        physicalInterface = getPhysicalInterface(vr)
-        logicalInterface = getLogicalInterface(physicalInterface, vnName + '_' + svcId)
-        if logicalInterface.get_virtual_machine_interface_refs():
-            for vmInt in logicalInterface.get_virtual_machine_interface_refs():
-                vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
-                if not vmIntObj.get_instance_ip_back_refs():
-                    instanceIp = createInstanceIp(ip, vmIntObj, vn)
-                    vmIntMac = { 'mac_address' : [ mac ] }
-                    vmIntObj.set_virtual_machine_interface_mac_addresses(vmIntMac)
+        if vn.get_bridge_domains():
+            print "l2: not adding ip"
+        else:
+            physicalInterface = getPhysicalInterface(vr)
+            logicalInterface = getLogicalInterface(physicalInterface, 'lif_' + svcId)
+            if logicalInterface.get_virtual_machine_interface_refs():
+                for vmInt in logicalInterface.get_virtual_machine_interface_refs():
+                    vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
+                    if not vmIntObj.get_instance_ip_back_refs():
+                        instanceIp = createInstanceIp(ip, vmIntObj, vn)
+                        vmIntMac = { 'mac_address' : [ mac ] }
+                        vmIntObj.set_virtual_machine_interface_mac_addresses(vmIntMac)
+                        vnc_client.virtual_machine_interface_update(vmIntObj)
+                        print "no inst ip on vmi"
+                    elif  vmIntObj.get_virtual_machine_interface_allowed_address_pairs():
+                        allowedAddressPairs = vmIntObj.get_virtual_machine_interface_allowed_address_pairs()
+                        allowed_address_pairs_exists = True
+                        print "aa pairs exist"
+                    else:
+                        allowedAddressPairs = vnc_api.AllowedAddressPairs()
+                        allowed_address_pairs_exists = True
+                        print "aa pair dont exist"
+                if allowed_address_pairs_exists:
+                    ip = {'ip_prefix':ip,'ip_prefix_len':32}
+                    addrPair = vnc_api.AllowedAddressPair(ip=ip, mac=mac, address_mode='active-standby')
+                    allowedAddressPairs.add_allowed_address_pair(addrPair)
+                    vmIntObj.set_virtual_machine_interface_allowed_address_pairs(allowedAddressPairs)
                     vnc_client.virtual_machine_interface_update(vmIntObj)
-                    print "no inst ip on vmi"
-                elif  vmIntObj.get_virtual_machine_interface_allowed_address_pairs():
-                    allowedAddressPairs = vmIntObj.get_virtual_machine_interface_allowed_address_pairs()
-                    allowed_address_pairs_exists = True
-                    print "aa pairs exist"
-                else:
-                    allowedAddressPairs = vnc_api.AllowedAddressPairs()
-                    allowed_address_pairs_exists = True
-                    print "aa pair dont exist"
-            if allowed_address_pairs_exists:
-                ip = {'ip_prefix':ip,'ip_prefix_len':32}
-                addrPair = vnc_api.AllowedAddressPair(ip=ip, mac=mac, address_mode='active-standby')
-                allowedAddressPairs.add_allowed_address_pair(addrPair)
-                vmIntObj.set_virtual_machine_interface_allowed_address_pairs(allowedAddressPairs)
-                vnc_client.virtual_machine_interface_update(vmIntObj)
-            #logicalInterface.delete_virtual_machine_interface(vmIntObj)
-            #logicalInterface.add_virtual_machine_interface(vmIntObj)
-            #vnc_client.logical_interface_update(logicalInterface)
+                #logicalInterface.delete_virtual_machine_interface(vmIntObj)
+                #logicalInterface.add_virtual_machine_interface(vmIntObj)
+                #vnc_client.logical_interface_update(logicalInterface)
             
                  
     if oper == 'del':
