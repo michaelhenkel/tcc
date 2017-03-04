@@ -208,7 +208,6 @@ def createService(data):
     name = data['name']
     svcId = data['Id']
     svcIdString = str(data['Id'])
-    isid = 1000 + svcId
     ip = data['dhcpip']
     network = data['subnet']
     customer = data['customer']
@@ -230,8 +229,9 @@ def createService(data):
         add = data['add']
     else:
         add = False
+    isid = 1000 + int(cvlan)
     print name
-    if mode is not 'l2':
+    if mode is not 'l2xxx':
         if_svc_name = name + '_' + svcIdString
         if_svc_peer_name = name + '_' + svcIdString + '_v'
         ip_ns = IPDB(nl=NetNS(name + '_' + svcIdString))
