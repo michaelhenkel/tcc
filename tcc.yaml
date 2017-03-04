@@ -44,13 +44,9 @@ Services:
   cvlan: '2'
   routetarget: '1:2'
   subnet: 2.0.0.0/24
-  back_refs: [ep21, ep22]
+  back_refs: [ep21]
 Endpoints:
 - name: ep21
-  endpointtype: ns
-  terminal: t1
-  service: svc2
-- name: ep22
   endpointtype: ns
   terminal: t1
   service: svc2

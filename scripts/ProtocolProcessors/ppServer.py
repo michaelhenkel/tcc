@@ -172,6 +172,7 @@ def createVirtualMachineInterface(tenant, vnName, sVid, cvlan=None):
     except:
         print 'cannot create vmi'
     vmIntObj = vnc_client.virtual_machine_interface_read(id = vmIntObjResult)
+    #if not bd:
     ipInst.set_virtual_machine_interface(vmIntObj)
     ipInst.set_virtual_network(vn)
     vnc_client.instance_ip_create(ipInst)
@@ -231,7 +232,7 @@ def createService(data):
         add = False
     isid = 1000 + int(cvlan)
     print name
-    if mode is not 'l2xxx':
+    if mode is not 'l2':
         if_svc_name = name + '_' + svcIdString
         if_svc_peer_name = name + '_' + svcIdString + '_v'
         ip_ns = IPDB(nl=NetNS(name + '_' + svcIdString))
