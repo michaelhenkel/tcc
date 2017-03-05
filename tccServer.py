@@ -156,7 +156,7 @@ def createImage(name, vmType, fileList, interfaceList, vsList=None):
         imageTemplateFileName = imageTemplateFileNameVR
         ram='4000'
         vcpus='2'
-    if vmType == 'ProtocolProccessors':
+    if vmType == 'ProtocolProcessors':
         imageTemplateFileName = imageTemplateFileNamePP
         ram='384'
         vcpus='1'
