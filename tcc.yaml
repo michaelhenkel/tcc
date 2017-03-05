@@ -9,7 +9,7 @@ Customers:
 - name: cust1
   back_refs: []
 - name: cust2
-  back_refs: [svc2, svc2]
+  back_refs: [svc2]
 - name: cust3
   back_refs: []
 VirtualRouters:
@@ -30,20 +30,7 @@ Terminals:
   host: 192.168.1.1
   vxlanip: 10.0.0.10
   protocolprocessor: pp1
-  back_refs: [svc2, svc2]
+  back_refs: [svc2]
   Id: 1
 Services:
-- name: svc2
-  terminal:
-  - t1: 1
-  customer: cust2
-  mode: l2
-  cvlan: '2'
-  routetarget: '1:2'
-  subnet: 2.0.0.0/24
-  back_refs: [ep21]
 Endpoints:
-- name: ep21
-  endpointtype: ns
-  terminal: t1
-  service: svc2

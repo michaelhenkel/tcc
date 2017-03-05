@@ -232,7 +232,9 @@ def createService(data):
         add = False
     isid = 1000 + int(cvlan)
     print name
+    print '############ mode: %s #########' % mode
     if mode != 'l2':
+        print '############ mode: %s #########' % mode
         if_svc_name = name + '_' + svcIdString
         if_svc_peer_name = name + '_' + svcIdString + '_v'
         ip_ns = IPDB(nl=NetNS(name + '_' + svcIdString))
@@ -341,7 +343,7 @@ def deleteService(data):
     #        veth.remove()
     subprocess.call(["ovs-vsctl", "del-port", "br0", name + '_' + str(svcId)])
     if not move:
-        if delvn:
+        if delvn and not bd:
             os.remove('/mnt/' + name + '.lease')
     return json.dumps({ 'status' : 'deleted service'})
 
