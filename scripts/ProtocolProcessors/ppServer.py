@@ -232,7 +232,7 @@ def createService(data):
         add = False
     isid = 1000 + int(cvlan)
     print name
-    if mode is not 'l2':
+    if mode != 'l2':
         if_svc_name = name + '_' + svcIdString
         if_svc_peer_name = name + '_' + svcIdString + '_v'
         ip_ns = IPDB(nl=NetNS(name + '_' + svcIdString))
@@ -331,7 +331,8 @@ def deleteService(data):
             os.kill(pid, signal.SIGKILL) 
         except:
             print 'nothing to kill'
-    netns.remove(name + '_' + str(svcId))
+    if not bd:
+        netns.remove(name + '_' + str(svcId))
     subprocess.call(['ip','link','del','dev',name + '_' + str(svcId)])
     #time.sleep(3)
     #ip_host = IPDB()

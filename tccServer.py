@@ -293,7 +293,7 @@ class Terminal(object):
         interfaceList.append(intEth0)
         interfaceList.append(intEth1)
         interfaceList.append(intBr0)
-        vs_eth1 = { 'interfaceName': 'eth1_' + self.terminalObject['name'] , 'switchName' : "vs-pp" }
+        vs_eth1 = { 'interfaceName': 'eth1_' + self.terminalObject['name'] , 'switchName' : "br0" }
         vsList.append(vs_eth1)
         createImage(self.terminalObject['name'], 'Terminals', fileList, interfaceList, vsList=vsList)
         return json.dumps({'status':'created Terminal'})
@@ -339,8 +339,10 @@ class VirtualRouter(object):
         cidrIp = IPNetwork(self.vrObject['ipaddress'] + '/' + self.vrObject['mgmtNetmask'])
         cidrIp = str(cidrIp)
         vrouterAgentString = """[CONTROL-NODE]
-[DEFAULT]
+[CONTROL-NODE]
 server=""" + api_server + """
+[DEFAULT]
+gateway_mode = server
 log_file=/var/log/contrail/contrail-vrouter-agent.log
 log_level=SYS_NOTICE
 log_local=1
@@ -441,7 +443,7 @@ class ProtocolProcessor(object):
         fileList.append(ppServerFileDict3)
         ppServerFileDict4 = { 'src' : scriptDirectory + '/ProtocolProcessors/dhcpscript.sh', 'dst' : '/dhcpscript.sh' }
         fileList.append(ppServerFileDict4)
-        vs_eth1 = { 'interfaceName': 'eth1_' + self.ppObject['name'] , 'switchName' : "vs-pp" }
+        vs_eth1 = { 'interfaceName': 'eth1_' + self.ppObject['name'] , 'switchName' : "br0" }
         vs_eth2 = { 'interfaceName': 'eth2_' + self.ppObject['name'] , 'switchName' : "vs-" + self.ppObject['name'] }
         vsList.append(vs_eth1)
         vsList.append(vs_eth2)
