@@ -94,6 +94,8 @@ def createService(name, terminalName, svcId, cvlan=None):
     if cvlan is not 0:
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId),'link', if_svc_name,'type','vlan','id',str(svcId)])
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'link', if_svc_name + '.' + str(svcId) ,'type','vlan','id',str(cvlan)])
+        subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId),'up'])
+        subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'up'])
         subprocess.call(["ovs-vsctl", "add-port", "br0", if_terminal_name])
         subprocess.call(["ovs-vsctl", "set", "port", if_terminal_name, "trunk=" + str(svcId)])
         subprocess.call(["ovs-vsctl", "add-port", "vs-" + name, if_svc_name + '.' + str(svcId) + '.' + str(cvlan)])
