@@ -156,7 +156,7 @@ def createImage(name, vmType, fileList, interfaceList, vsList=None):
         imageTemplateFileName = imageTemplateFileNameVR
         ram='4000'
         vcpus='2'
-    if vmType == 'ProtocolProccessors':
+    if vmType == 'ProtocolProcessors':
         imageTemplateFileName = imageTemplateFileNamePP
         ram='384'
         vcpus='1'
@@ -184,6 +184,7 @@ def createImage(name, vmType, fileList, interfaceList, vsList=None):
     fileList.append(hostnameFileDict)
     fileList.append(scriptFileDict)
     shutil.copy2(imageTemplatePath, imageFile)
+    '''
     g = guestfs.GuestFS ()
     g.add_drive(imageFile)
     g.launch()
@@ -192,19 +193,9 @@ def createImage(name, vmType, fileList, interfaceList, vsList=None):
         g.upload(file['src'], file['dst'])
     g.sync()
     g.umount_all()
-    f = open(definitionTemplateFile, 'r')
-    defTemp = f.read()
-    f.close()
-    defTempString = defTemp.replace('VMNAME',name)
-    defTempString = defTempString.replace('IMAGEPATH',imageFile)
     '''
-    if vsList:
-        for vs in vsList:
-            defTempString = defTempString.replace(vs.keys()[0],vs.values()[0])
-    '''
-    defFile = open(definitionFile, 'w')
-    defFile.write(defTempString)
-    defFile.close()
+    for file in fileList:
+        subprocess.call(['/usr/bin/virt-customize','--upload',file['src']+':'+file['dst'],'-a',imageFile])
     virtInstall = ['/usr/bin/virt-install',
         '--name=%s' % name,
         '--disk=%s' % imageFile,
@@ -213,7 +204,6 @@ def createImage(name, vmType, fileList, interfaceList, vsList=None):
         '--network=network=br0,model=virtio,target=eth0_%s,mac=%s' % (name, eth0_mac),
         '--virt-type=kvm',
         '--import',
-        '--os-variant=ubuntu16.04',
         '--graphics=vnc',
         '--serial=pty',
         '--noautoconsole',
@@ -223,25 +213,6 @@ def createImage(name, vmType, fileList, interfaceList, vsList=None):
             virtInstall.append('--network=network=%s,model=virtio,target=%s' % (vs['switchName'], vs['interfaceName']))
     print virtInstall
     subprocess.call(virtInstall)
-    '''
-    conn = libvirt.open('qemu:///system')
-    definedDomains = conn.listDefinedDomains()
-    try:
-        dom0 = conn.lookupByName(name)
-        dom0.undefine()
-        f = open(definitionFile,'r')
-        xmlDef = f.read()
-        f.close()
-        vmObj = conn.defineXML(xmlDef)
-        status = vmObj.create()
-    except:
-        f = open(definitionFile,'r')
-        xmlDef = f.read()
-        f.close()
-        vmObj = conn.defineXML(xmlDef)
-        status = vmObj.create()
-    '''
-    time.sleep(10)
     subprocess.call(['ifconfig','eth0_'+name,'mtu','9000'])
     if vsList:
         for vs in vsList:
