@@ -146,16 +146,19 @@ def createVirtualMachineInterface(tenant, vnName, sVid, cvlan=None):
     project = vnc_client.project_read(fq_name_str = 'default-domain:' + tenant)
     vn = vnc_client.virtual_network_read(fq_name_str = 'default-domain:' + tenant + ':' + vnName)
     #vmIntMac = { 'mac_address' : [ mac ] }
-    vmIntUUID = str(uuid.uuid4())
+    p_vmIntUUID = str(uuid.uuid4())
+    s_vmIntUUID = str(uuid.uuid4())
     instIpUUID = str(uuid.uuid4())
     ipInst = vnc_api.InstanceIp(name = instIpUUID)
     #vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project, virtual_machine_interface_mac_addresses = vmIntMac)
     bd = vn.get_bridge_domains()
-    p_vmIntObj = vnc_api.VirtualMachineInterface(name = 'p_' + vnName + '_' + sVid, parent_obj = project)
+    p_vmIntObj = vnc_api.VirtualMachineInterface(name = p_vmIntUUID, parent_obj = project)
+    #p_vmIntObj = vnc_api.VirtualMachineInterface(name = 'p_' + vnName + '_' + sVid, parent_obj = project)
     p_vmIntObj.set_virtual_network(vn)
     p_vmIntObjResult = vnc_client.virtual_machine_interface_create(p_vmIntObj)
     p_vmIntObj = vnc_client.virtual_machine_interface_read(id = p_vmIntObjResult)
-    s_vmIntObj = vnc_api.VirtualMachineInterface(name = 's_' + vnName + '_' + sVid, parent_obj = project)
+    s_vmIntObj = vnc_api.VirtualMachineInterface(name = s_vmIntUUID, parent_obj = project)
+    #s_vmIntObj = vnc_api.VirtualMachineInterface(name = 's_' + vnName + '_' + sVid, parent_obj = project)
     s_vmIntObj.set_virtual_network(vn)
     s_vmIntObj.set_virtual_machine_interface(p_vmIntObj)
     if bd:
@@ -264,16 +267,17 @@ def createService(data):
         except:
             print 'failed to create VN'
     phInt = getPhysicalInterface(vr, serviceInterface)
-    if cvlan:
-        vmInterface = createVirtualMachineInterface(customer, name, str(svcId), cvlan)
-    else:
-        vmInterface = createVirtualMachineInterface(customer, name, str(svcId))
     lif = vnc_client.logical_interface_read(fq_name=['default-global-system-config',vr,serviceInterface,'lif_' + str(svcId)])
+    if not move:
+        if cvlan:
+            vmInterface = createVirtualMachineInterface(customer, name, str(svcId), cvlan)
+        else:
+            vmInterface = createVirtualMachineInterface(customer, name, str(svcId))
     #lif = createLogicalInterface(phInt, name + '_' + svcIdString, str(svcId))
-    lif.add_virtual_machine_interface(vmInterface)
-    vnc_client.logical_interface_update(lif)
+        lif.add_virtual_machine_interface(vmInterface)
+        vnc_client.logical_interface_update(lif)
     if move:
-        oldlif = getLogicalInterface(oldvr, name + '_' + str(oldId))
+        oldlif = getLogicalInterface(oldvr, 'lif_' + str(oldId))
         if oldlif.get_virtual_machine_interface_refs():
             for vmInt in oldlif.get_virtual_machine_interface_refs():
                 vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
@@ -284,6 +288,7 @@ def createService(data):
     return json.dumps({ 'status' : 'created service'})
 
 def deleteService(data):
+    bd = False
     name = data['name']
     customer = data['customer']
     vr = data['virtualrouter']
@@ -316,10 +321,20 @@ def deleteService(data):
                     p_vmIntObj = vnc_client.virtual_machine_interface_read(id=parentVmi['uuid'])
             vnc_client.virtual_machine_interface_delete(id = vmIntObj.get_uuid())
             vnc_client.virtual_machine_interface_delete(id = p_vmIntObj.get_uuid())
+
+    if lif.get_virtual_machine_interface_refs() and move:
+        for vmInt in lif.get_virtual_machine_interface_refs():
+            vmIntObj = vnc_client.virtual_machine_interface_read(id = vmInt['uuid'])
+            if vmIntObj.get_logical_interface_back_refs():
+                for logicalInterface in vmIntObj.get_logical_interface_back_refs():
+                    logInt = vnc_client.logical_interface_read(id = logicalInterface['uuid'])
+                logInt.del_virtual_machine_interface(vmIntObj)
+                vnc_client.logical_interface_update(logInt)
+    
     #vnc_client.logical_interface_delete(id = lif.get_uuid())
+    vn = getVirtualNetwork(customer, name)
+    bd = vn.get_bridge_domains()
     if not move:
-        vn = getVirtualNetwork(customer, name)
-        bd = vn.get_bridge_domains()
         if delvn:
             if bd:
                 vnc_client.bridge_domain_delete(id=bd[0]['uuid'])

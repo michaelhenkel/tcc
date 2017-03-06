@@ -121,6 +121,7 @@ class Elements(object):
         return self.__dict__
     def check(self, args):
         check_lookup = {}
+        print args
         for attribute in self.mandatoryAttributes:
             if not getattr(args, attribute):
                 print attribute + ' is missing'
@@ -256,6 +257,8 @@ class Elements(object):
         args.customer = service.customer
         args.routetarget = service.routetarget
         args.subnet = service.subnet
+        args.mode = service.mode
+        args.cvlan = service.cvlan
         self.subnet = service.subnet
         self.terminal = args.terminal
         self.name = args.name
@@ -441,8 +444,10 @@ class Terminal(Elements):
         terminal = tcc.get('Terminals',self.name)
         currentProtocolprocessor = tcc.get('ProtocolProcessors',terminal.protocolprocessor)
         newProtocolprocessor = tcc.get('ProtocolProcessors',args.protocolprocessor)
-        currentVirtualrouter = tcc.get('VirtualRouters',currentProtocolprocessor.virtualrouter)
-        newVirtualrouter = tcc.get('VirtualRouters',newProtocolprocessor.virtualrouter)
+        currentVirtualrouter = tcc.getByAttr('VirtualRouters','protocolprocessor',terminal.protocolprocessor)
+        #currentVirtualrouter = tcc.get('VirtualRouters',currentProtocolprocessor.virtualrouter)
+        #newVirtualrouter = tcc.get('VirtualRouters',newProtocolprocessor.virtualrouter)
+        newVirtualrouter = tcc.getByAttr('VirtualRouters','protocolprocessor',args.protocolprocessor)
         currentSvcIdList = terminal.back_refs
         self.Id = self.findFreeId(1, 'Terminals', 'ProtocolProcessors', self.name, newProtocolprocessor.name)
         self.move = True
@@ -490,6 +495,7 @@ class Terminal(Elements):
                     result = sendData(service.show(),newProtocolprocessor.ipaddress,port,'createService')
                 except:
                     print 'creating service failed'
+                service.terminal = terminal.name
                 try:
                     result = sendData(service.show(),terminal.ipaddress,port,'changeService')
                 except:
@@ -533,7 +539,6 @@ class Service(Elements):
         self.dhcpip = str(dhcpip.broadcast - 1)
         terminal = tcc.get('Terminals',self.terminal)
         protocolprocessor = tcc.get('ProtocolProcessors',terminal.protocolprocessor)
-        print tcc.getByAttr('VirtualRouters','protocolprocessor',terminal.protocolprocessor)
         virtualRouter = tcc.getByAttr('VirtualRouters','protocolprocessor',terminal.protocolprocessor)
         #virtualRouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
         start = int(terminal.Id) * 10 - 10 + 1
@@ -549,10 +554,13 @@ class Service(Elements):
         self.dhcpip = str(dhcpip.broadcast - 1)
         terminal = tcc.get('Terminals',self.terminal)
         protocolprocessor = tcc.get('ProtocolProcessors',terminal.protocolprocessor)
-        virtualRouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
+        virtualRouter = tcc.getByAttr('VirtualRouters','protocolprocessor',terminal.protocolprocessor)
+        #virtualRouter = tcc.get('VirtualRouters',protocolprocessor.virtualrouter)
         service = tcc.get('Services', self.name)
         self.routetarget = service.routetarget
         self.customer = service.customer
+        self.mode = service.mode
+        self.cvlan = service.cvlan
         self.add = True 
         start = int(terminal.Id) * 10 - 10 + 1
         svcId = self.findFreeSvcId(start, 'Services', 'Terminals', self.name, terminal.name)

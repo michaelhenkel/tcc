@@ -51,7 +51,7 @@ class Handler(BaseHTTPRequestHandler):
             self.request.sendall(result)
         if self.path == '/changeService':
             print data
-            result = changeService(data['name'],data['terminal'], data['Id'])
+            result = changeService(data['name'],data['terminal'], data['Id'], data['oldId'], data['cvlan'])
             self.request.sendall(result)
         if self.path == '/deleteService':
             print data
@@ -91,7 +91,7 @@ def createService(name, terminalName, svcId, cvlan=None):
     with ip_host.interfaces[if_terminal_name] as veth:
         veth.up()
     ip_host.release()
-    if cvlan is not 0:
+    if cvlan != 0:
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId),'link', if_svc_name,'type','vlan','id',str(svcId)])
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'link', if_svc_name + '.' + str(svcId) ,'type','vlan','id',str(cvlan)])
         subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId),'up'])
@@ -110,9 +110,20 @@ def moveTerminal(data):
     subprocess.call(['ovs-vsctl', 'add-port', 'br0', data['newpp'], '--', 'set', 'interface', data['newpp'], 'type=vxlan', 'options:remote_ip='+data['newppvxlanip']])
     return json.dumps({ 'status' : 'terminal nmoved'})
 
-def changeService(name, terminalName, svcId):
+def changeService(name, terminalName, svcId, oldsvcId, cvlan):
     if_terminal_name = name + '_' + terminalName
-    subprocess.call(["ovs-vsctl", "set", "port", if_terminal_name, "tag=" + str(svcId)])
+    if_svc_name = name
+    if cvlan != 0:
+        subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId),'link', if_svc_name,'type','vlan','id',str(svcId)])
+        subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'link', if_svc_name + '.' + str(svcId) ,'type','vlan','id',str(cvlan)])    
+        subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId),'up'])
+        subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'up'])
+        subprocess.call(["ovs-vsctl", "add-port", "vs-" + name, if_svc_name + '.' + str(svcId) + '.' + str(cvlan)])
+        subprocess.call(["ovs-vsctl", "set", "port", if_terminal_name, "trunk=" + str(svcId)])
+        subprocess.call(["ovs-vsctl", "del-port", "vs-" + name, if_svc_name + '.' + str(oldsvcId) + '.' + str(cvlan)])
+        subprocess.call(['ip','link','del','dev',if_svc_name + '.' + str(oldsvcId) + '.' + str(cvlan)])
+    else:
+        subprocess.call(["ovs-vsctl", "set", "port", if_terminal_name, "tag=" + str(svcId)])
     return json.dumps({ 'status' : 'changed service'})
 
 def deleteService(name, terminalName):

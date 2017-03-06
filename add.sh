@@ -20,12 +20,12 @@
 #./3tccClient.py create service -n svc4 -sn 4.0.0.0/24 -t t2 -cust cust2 -rt 1:4
 #./3tccClient.py create service -n svc5 -sn 5.0.0.0/24 -t t3 -cust cust1 -rt 1:5
 #./3tccClient.py create service -n svc6 -sn 6.0.0.0/24 -t t3 -cust cust2 -rt 1:6
-./3tccClient.py create endpoint -n ep10 -svc svc1 -t t1 -et lxc
-./3tccClient.py create endpoint -n ep11 -svc svc1 -t t2 -et lxc
-./3tccClient.py create endpoint -n ep20 -svc svc2 -t t2 -et lxc
-./3tccClient.py create endpoint -n ep21 -svc svc2 -t t3 -et lxc
-./3tccClient.py create endpoint -n ep30 -svc svc3 -t t3 -et lxc
-./3tccClient.py create endpoint -n ep31 -svc svc3 -t t1 -et lxc
+./3tccClient.py create endpoint -n ep10 -svc svc1 -t t1 -et ns
+./3tccClient.py create endpoint -n ep11 -svc svc1 -t t2 -et ns
+./3tccClient.py create endpoint -n ep20 -svc svc2 -t t2 -et ns
+./3tccClient.py create endpoint -n ep21 -svc svc2 -t t3 -et ns
+./3tccClient.py create endpoint -n ep30 -svc svc3 -t t3 -et ns
+./3tccClient.py create endpoint -n ep31 -svc svc3 -t t1 -et ns
 #./3tccClient.py create endpoint -n ep40 -svc svc4 -et lxc
 #./3tccClient.py create endpoint -n ep41 -svc svc4 -et lxc
 #./3tccClient.py create endpoint -n ep50 -svc svc5 -et lxc
