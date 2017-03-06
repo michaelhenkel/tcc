@@ -219,10 +219,12 @@ def createService(data):
     terminal = data['terminal']
     vr = data['virtualrouter']
     mode = data['mode']
-    if data['cvlan'] is not 0:
+    if data['cvlan'] != '0':
         cvlan = data['cvlan']
+        isid = 1000 + int(cvlan)
     else:
         cvlan = None
+        isid = 0
     if 'move' in data:
         move = data['move']
         oldvr = data['oldvr']
@@ -233,7 +235,6 @@ def createService(data):
         add = data['add']
     else:
         add = False
-    isid = 1000 + int(cvlan)
     print name
     print '############ mode: %s #########' % mode
     if mode != 'l2':

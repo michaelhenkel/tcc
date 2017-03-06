@@ -91,7 +91,7 @@ def createService(name, terminalName, svcId, cvlan=None):
     with ip_host.interfaces[if_terminal_name] as veth:
         veth.up()
     ip_host.release()
-    if cvlan != 0:
+    if cvlan != '0':
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId),'link', if_svc_name,'type','vlan','id',str(svcId)])
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'link', if_svc_name + '.' + str(svcId) ,'type','vlan','id',str(cvlan)])
         subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId),'up'])
@@ -113,7 +113,7 @@ def moveTerminal(data):
 def changeService(name, terminalName, svcId, oldsvcId, cvlan):
     if_terminal_name = name + '_' + terminalName
     if_svc_name = name
-    if cvlan != 0:
+    if cvlan != '0':
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId),'link', if_svc_name,'type','vlan','id',str(svcId)])
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'link', if_svc_name + '.' + str(svcId) ,'type','vlan','id',str(cvlan)])    
         subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId),'up'])
