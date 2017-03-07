@@ -12,13 +12,13 @@
 #extend services
 ## l@
 ./3tccClient.py add service -n svc1 -t t3
-./3tccClient.py add service -n svc2 -t t2
-./3tccClient.py add service -n svc3 -t t1
+./3tccClient.py add service -n svc2 -t t1
+./3tccClient.py add service -n svc3 -t t2
 
 ## L3
 ./3tccClient.py add service -n svc4 -t t3
-./3tccClient.py add service -n svc5 -t t2
-./3tccClient.py add service -n svc6 -t t1
+./3tccClient.py add service -n svc5 -t t1
+./3tccClient.py add service -n svc6 -t t2
 
 # create endpoints
 ./3tccClient.py create endpoint -n ep10 -svc svc1 -t t1 -et ns
@@ -30,11 +30,11 @@
 ./3tccClient.py create endpoint -n ep60 -svc svc6 -t t3 -et ns
 
 ./3tccClient.py create endpoint -n ep11 -svc svc1 -t t3 -et ns
-./3tccClient.py create endpoint -n ep21 -svc svc2 -t t2 -et ns
-./3tccClient.py create endpoint -n ep31 -svc svc3 -t t1 -et ns
+./3tccClient.py create endpoint -n ep21 -svc svc2 -t t1 -et ns
+./3tccClient.py create endpoint -n ep31 -svc svc3 -t t2 -et ns
 
 ./3tccClient.py create endpoint -n ep41 -svc svc4 -t t3 -et ns
-./3tccClient.py create endpoint -n ep51 -svc svc5 -t t2 -et ns
-./3tccClient.py create endpoint -n ep61 -svc svc6 -t t1 -et ns
+./3tccClient.py create endpoint -n ep51 -svc svc5 -t t1 -et ns
+./3tccClient.py create endpoint -n ep61 -svc svc6 -t t2 -et ns
 
 ./3tccClient.py move terminal -n t1 -pp pp2

@@ -145,35 +145,38 @@ def getLogicalInterface(vrName, interface):
 def createVirtualMachineInterface(tenant, vnName, sVid, cvlan=None):
     project = vnc_client.project_read(fq_name_str = 'default-domain:' + tenant)
     vn = vnc_client.virtual_network_read(fq_name_str = 'default-domain:' + tenant + ':' + vnName)
-    #vmIntMac = { 'mac_address' : [ mac ] }
-    p_vmIntUUID = str(uuid.uuid4())
-    s_vmIntUUID = str(uuid.uuid4())
+    bd = vn.get_bridge_domains()
     instIpUUID = str(uuid.uuid4())
     ipInst = vnc_api.InstanceIp(name = instIpUUID)
-    #vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project, virtual_machine_interface_mac_addresses = vmIntMac)
-    bd = vn.get_bridge_domains()
-    p_vmIntObj = vnc_api.VirtualMachineInterface(name = p_vmIntUUID, parent_obj = project)
-    #p_vmIntObj = vnc_api.VirtualMachineInterface(name = 'p_' + vnName + '_' + sVid, parent_obj = project)
-    p_vmIntObj.set_virtual_network(vn)
-    p_vmIntObjResult = vnc_client.virtual_machine_interface_create(p_vmIntObj)
-    p_vmIntObj = vnc_client.virtual_machine_interface_read(id = p_vmIntObjResult)
-    s_vmIntObj = vnc_api.VirtualMachineInterface(name = s_vmIntUUID, parent_obj = project)
-    #s_vmIntObj = vnc_api.VirtualMachineInterface(name = 's_' + vnName + '_' + sVid, parent_obj = project)
-    s_vmIntObj.set_virtual_network(vn)
-    s_vmIntObj.set_virtual_machine_interface(p_vmIntObj)
     if bd:
+        p_vmIntUUID = str(uuid.uuid4())
+        s_vmIntUUID = str(uuid.uuid4())
+        p_vmIntObj = vnc_api.VirtualMachineInterface(name = p_vmIntUUID, parent_obj = project)
+        p_vmIntObj.set_virtual_network(vn)
+        p_vmIntObjResult = vnc_client.virtual_machine_interface_create(p_vmIntObj)
+        p_vmIntObj = vnc_client.virtual_machine_interface_read(id = p_vmIntObjResult)
+        s_vmIntObj = vnc_api.VirtualMachineInterface(name = s_vmIntUUID, parent_obj = project)
+        s_vmIntObj.set_virtual_network(vn)
+        s_vmIntObj.set_virtual_machine_interface(p_vmIntObj)
         bridge_domain = vnc_client.bridge_domain_read(id=bd[0]['uuid'])
         bmem=vnc_api.BridgeDomainMembershipType(vlan_tag=0)
         s_vmIntObj.add_bridge_domain(bridge_domain,bmem)
         s_vmIntObj.set_virtual_machine_interface_disable_policy(True)
         if cvlan:
-            print "cvlan is there"
             s_vmIntObj.set_virtual_machine_interface_properties({'sub_interface_vlan_tag':cvlan})
-    print vn.get_uuid()
-    try:
-        vmIntObjResult = vnc_client.virtual_machine_interface_create(s_vmIntObj)
-    except:
-        print 'cannot create vmi'
+        try:
+            vmIntObjResult = vnc_client.virtual_machine_interface_create(s_vmIntObj)
+        except:
+            print 'cannot create vmi'
+    else:
+        vmIntUUID = str(uuid.uuid4())
+        vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project)
+        vmIntObj.set_virtual_network(vn)
+        vmIntObjResult = vnc_client.virtual_machine_interface_create(vmIntObj)
+        try:
+            vmIntObjResult = vnc_client.virtual_machine_interface_create(vmIntObj)
+        except:
+            print 'cannot create vmi'
     vmIntObj = vnc_client.virtual_machine_interface_read(id = vmIntObjResult)
     #if not bd:
     ipInst.set_virtual_machine_interface(vmIntObj)
