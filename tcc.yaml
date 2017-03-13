@@ -7,7 +7,7 @@ Network:
     netmask: 255.255.255.0
 Customers:
 - name: cust1
-  back_refs: []
+  back_refs: [svc1]
 - name: cust2
   back_refs: []
 - name: cust3
@@ -33,12 +33,12 @@ ProtocolProcessors:
   ipaddress: 192.168.1.80
   host: 192.168.1.2
   vxlanip: 10.0.0.1
-  back_refs: [vr1, t1]
+  back_refs: [vr1, t2, t1]
 - name: pp2
   ipaddress: 192.168.1.81
   host: 192.168.1.3
   vxlanip: 10.0.0.2
-  back_refs: [vr2, t2]
+  back_refs: [vr2]
 - name: pp3
   ipaddress: 192.168.1.82
   host: 192.168.1.4
@@ -50,15 +50,15 @@ Terminals:
   host: 192.168.1.1
   vxlanip: 10.0.0.10
   protocolprocessor: pp1
-  back_refs: []
+  back_refs: [svc1]
   Id: 1
 - name: t2
   ipaddress: 192.168.1.91
   host: 192.168.1.1
   vxlanip: 10.0.0.11
-  protocolprocessor: pp2
-  back_refs: []
-  Id: 1
+  protocolprocessor: pp1
+  back_refs: [svc1]
+  Id: 2
 - name: t3
   ipaddress: 192.168.1.92
   host: 192.168.1.1
@@ -67,4 +67,22 @@ Terminals:
   back_refs: []
   Id: 1
 Services:
+- name: svc1
+  terminal:
+  - t1: 1
+  - t2: 11
+  customer: cust1
+  mode: l2
+  cvlan: '1'
+  routetarget: '1:1'
+  subnet: 1.0.0.0/24
+  back_refs: [ep10, ep11]
 Endpoints:
+- name: ep10
+  endpointtype: ns
+  terminal: t1
+  service: svc1
+- name: ep11
+  endpointtype: ns
+  terminal: t2
+  service: svc1

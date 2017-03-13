@@ -1,0 +1,1 @@
+for i in {1..10}; do ./3tccClient.py move terminal -n t1 -pp pp2; ./3tccClient.py move terminal -n t2 -pp pp1; sleep 2; ./3tccClient.py move terminal -n t1 -pp pp1; ./3tccClient.py move terminal -n t2 -pp pp2; done

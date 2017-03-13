@@ -91,7 +91,9 @@ def createService(name, terminalName, svcId, cvlan=None):
     with ip_host.interfaces[if_terminal_name] as veth:
         veth.up()
     ip_host.release()
+    print "###############################"
     if cvlan != '0':
+        print "########### creating int %s ###########" % if_svc_name + '.' + str(svcId) + '.' + str(cvlan)
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId),'link', if_svc_name,'type','vlan','id',str(svcId)])
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'link', if_svc_name + '.' + str(svcId) ,'type','vlan','id',str(cvlan)])
         subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId),'up'])
@@ -113,15 +115,19 @@ def moveTerminal(data):
 def changeService(name, terminalName, svcId, oldsvcId, cvlan):
     if_terminal_name = name + '_' + terminalName
     if_svc_name = name
+    print "if_svc_name: %s" % if_svc_name
     if cvlan != '0':
+        print "########### creating int %s" % if_svc_name + '.' + str(svcId) + '.' + str(cvlan)
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId),'link', if_svc_name,'type','vlan','id',str(svcId)])
         subprocess.call(['ip','link','add','name',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'link', if_svc_name + '.' + str(svcId) ,'type','vlan','id',str(cvlan)])    
+        print "ip link add name %s.%s.%s link %s.%s type vlan id %s" % (if_svc_name, str(svcId), str(cvlan), if_svc_name, str(svcId), str(cvlan))
         subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId),'up'])
         subprocess.call(['ip','link','set','dev',if_svc_name + '.' + str(svcId) + '.' + str(cvlan) ,'up'])
         subprocess.call(["ovs-vsctl", "add-port", "vs-" + name, if_svc_name + '.' + str(svcId) + '.' + str(cvlan)])
         subprocess.call(["ovs-vsctl", "set", "port", if_terminal_name, "trunk=" + str(svcId)])
-        subprocess.call(["ovs-vsctl", "del-port", "vs-" + name, if_svc_name + '.' + str(oldsvcId) + '.' + str(cvlan)])
-        subprocess.call(['ip','link','del','dev',if_svc_name + '.' + str(oldsvcId) + '.' + str(cvlan)])
+        if oldsvcId != svcId:
+            subprocess.call(["ovs-vsctl", "del-port", "vs-" + name, if_svc_name + '.' + str(oldsvcId) + '.' + str(cvlan)])
+            subprocess.call(['ip','link','del','dev',if_svc_name + '.' + str(oldsvcId) + '.' + str(cvlan)])
     else:
         subprocess.call(["ovs-vsctl", "set", "port", if_terminal_name, "tag=" + str(svcId)])
     return json.dumps({ 'status' : 'changed service'})
