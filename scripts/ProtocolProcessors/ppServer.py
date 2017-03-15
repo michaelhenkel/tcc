@@ -278,7 +278,7 @@ def createService(data):
         if vrmac:
             nw = IPNetwork(network)
             gw = str(nw.network + 1) 
-            subprocess.Popen(['ip','netns','exec',name + '_' + svcIdString, 'arping', '-U', '-P', '-p', '-s', vrmac, '-S', gw, '-B', '-c','20','&'])
+            subprocess.Popen(['ip','netns','exec',name + '_' + svcIdString, 'arping', '-U', '-P', '-p', '-s', vrmac, '-S', gw, '-B', '-c','5','&'])
             #nsp = NSPopen(name + '_' + svcIdString, ['/usr/sbin/arping','-U','-P','-p','-s',vrmac,'-S',gw,'-B','-c','10','&'], stdout=subprocess.PIPE)
             #nsp.wait()
             #nsp.release()
