@@ -358,6 +358,7 @@ class VirtualRouter(Elements):
     def __init__(self, obj = None):
         self.mandatoryAttributes = CommentedMap([( 'name' , 'unique' ),
                                                  ( 'ipaddress', 'unique'),
+                                                 ( 'mac', 'unique'),
                                                  ( 'protocolprocessor', 'ref'),
                                                  ( 'host', None)])
         self.back_refs = []
@@ -483,6 +484,7 @@ class Terminal(Elements):
                 service.Id = self.Id * 10 - 10 + terminal.back_refs.index(service.name) + 1
                 service.virtualrouter = newVirtualrouter.name
                 service.oldvr = currentVirtualrouter.name
+                service.vrmac = newVirtualrouter.mac
                 for svcObj in tccConfigObject['Services']:
                     if svcObj['name'] == service.name:
                         for term in svcObj['terminal']:

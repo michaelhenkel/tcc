@@ -151,20 +151,22 @@ def createVirtualMachineInterface(tenant, vnName, sVid, cvlan=None):
     project = vnc_client.project_read(fq_name_str = 'default-domain:' + tenant)
     vn = vnc_client.virtual_network_read(fq_name_str = 'default-domain:' + tenant + ':' + vnName)
     bd = vn.get_bridge_domains()
+    instIpUUID = str(uuid.uuid4())
+    ipInst = vnc_api.InstanceIp(name = instIpUUID)
     if bd:
-        bmem=vnc_api.BridgeDomainMembershipType(vlan_tag=0)
-        bridge_domain = vnc_client.bridge_domain_read(id=bd[0]['uuid'])
         p_vmIntUUID = str(uuid.uuid4())
         s_vmIntUUID = str(uuid.uuid4())
         p_vmIntObj = vnc_api.VirtualMachineInterface(name = p_vmIntUUID, parent_obj = project)
         p_vmIntObj.set_virtual_network(vn)
-        p_vmIntObj.add_bridge_domain(bridge_domain,bmem)
-        p_vmIntObj.set_virtual_machine_interface_disable_policy(True)
         p_vmIntObjResult = vnc_client.virtual_machine_interface_create(p_vmIntObj)
         p_vmIntObj = vnc_client.virtual_machine_interface_read(id = p_vmIntObjResult)
         s_vmIntObj = vnc_api.VirtualMachineInterface(name = s_vmIntUUID, parent_obj = project)
         s_vmIntObj.set_virtual_network(vn)
         s_vmIntObj.set_virtual_machine_interface(p_vmIntObj)
+        bridge_domain = vnc_client.bridge_domain_read(id=bd[0]['uuid'])
+        bmem=vnc_api.BridgeDomainMembershipType(vlan_tag=0)
+        s_vmIntObj.add_bridge_domain(bridge_domain,bmem)
+        s_vmIntObj.set_virtual_machine_interface_disable_policy(True)
         if cvlan:
             s_vmIntObj.set_virtual_machine_interface_properties({'sub_interface_vlan_tag':cvlan})
         try:
@@ -173,9 +175,8 @@ def createVirtualMachineInterface(tenant, vnName, sVid, cvlan=None):
             print 'cannot create vmi'
         vmIntObj = vnc_client.virtual_machine_interface_read(id = p_vmIntObjResult)
         s_vmIntObj = vnc_client.virtual_machine_interface_read(id = s_vmIntObjResult)
+        ipInst.set_virtual_machine_interface(s_vmIntObj)
     else:
-        instIpUUID = str(uuid.uuid4())
-        ipInst = vnc_api.InstanceIp(name = instIpUUID)
         vmIntUUID = str(uuid.uuid4())
         vmIntObj = vnc_api.VirtualMachineInterface(name = vmIntUUID, parent_obj = project)
         vmIntObj.set_virtual_network(vn)
@@ -186,8 +187,8 @@ def createVirtualMachineInterface(tenant, vnName, sVid, cvlan=None):
             print 'cannot create vmi'
         vmIntObj = vnc_client.virtual_machine_interface_read(id = vmIntObjResult)
         ipInst.set_virtual_machine_interface(vmIntObj)
-        ipInst.set_virtual_network(vn)
-        vnc_client.instance_ip_create(ipInst)
+    ipInst.set_virtual_network(vn)
+    vnc_client.instance_ip_create(ipInst)
     return vmIntObj
 
 def createTerminal(terminal):
@@ -228,10 +229,6 @@ def createService(data):
     terminal = data['terminal']
     vr = data['virtualrouter']
     mode = data['mode']
-    if 'vrmac' in data:
-        vrmac = data['vrmac']
-    else:
-        vrmac = False
     if data['cvlan'] != '0':
         cvlan = data['cvlan']
         isid = 1000 + int(cvlan)
@@ -275,13 +272,6 @@ def createService(data):
         nsp = NSPopen(name + '_' + svcIdString, ['dnsmasq', '-C', '/etc/dnsmasq.d/' + name + '.conf'], stdout=subprocess.PIPE)
         nsp.wait()
         nsp.release()
-        if vrmac:
-            nw = IPNetwork(network)
-            gw = str(nw.network + 1) 
-            subprocess.Popen(['ip','netns','exec',name + '_' + svcIdString, 'arping', '-U', '-P', '-p', '-s', vrmac, '-S', gw, '-B', '-c','20','&'])
-            #nsp = NSPopen(name + '_' + svcIdString, ['/usr/sbin/arping','-U','-P','-p','-s',vrmac,'-S',gw,'-B','-c','10','&'], stdout=subprocess.PIPE)
-            #nsp.wait()
-            #nsp.release()
     if not move or add:
         try:
             vn = createVirtualNetwork(customer, name, network, routetarget, mode, isid)
@@ -306,10 +296,10 @@ def createService(data):
                     oldlif.del_virtual_machine_interface(vmIntObj)
                     vnc_client.logical_interface_update(oldlif)
                     ### test
-                    #phInt = vnc_client.physical_interface_read(fq_name=oldlif.get_parent_fq_name())
-                    #oldlif2 = vnc_api.LogicalInterface(name=oldlif.get_fq_name()[3], parent_obj=phInt, logical_interface_vlan_tag=oldlif.get_logical_interface_vlan_tag(),logical_interface_type='l2')
-                    #vnc_client.logical_interface_delete(id=oldlif.get_uuid())
-                    #vnc_client.logical_interface_create(oldlif2)
+                    phInt = vnc_client.physical_interface_read(fq_name=oldlif.get_parent_fq_name())
+                    oldlif2 = vnc_api.LogicalInterface(name=oldlif.get_fq_name()[3], parent_obj=phInt, logical_interface_vlan_tag=oldlif.get_logical_interface_vlan_tag(),logical_interface_type='l2')
+                    vnc_client.logical_interface_delete(id=oldlif.get_uuid())
+                    vnc_client.logical_interface_create(oldlif2)
                     lif.add_virtual_machine_interface(vmIntObj)
                     vnc_client.logical_interface_update(lif)
     return json.dumps({ 'status' : 'created service'})
