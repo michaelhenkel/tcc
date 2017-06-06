@@ -491,7 +491,7 @@ if __name__ == "__main__":
         sys.exit()
     HOST = get_ip_address(sys.argv[1])
     PORT = 6666
-    server_address = (HOST, PORT)
+    server_address = ('192.168.1.1', PORT)
     httpd = HTTPServer(server_address, Handler)
-    print "Serving at: http://%s:%s" % (HOST, PORT)
+    print "Serving at: http://%s:%s" % ('192.168.1.1', PORT)
     httpd.serve_forever()
