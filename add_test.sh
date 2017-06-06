@@ -38,3 +38,7 @@
 ./3tccClient.py create endpoint -n ep61 -svc svc6 -t t2 -et ns
 
 ./3tccClient.py move terminal -n t1 -pp pp2
+./3tccClient.py move terminal -n t1 -pp pp3
+./3tccClient.py move terminal -n t2 -pp pp3
+./3tccClient.py move terminal -n t1 -pp pp1
+./3tccClient.py move terminal -n t2 -pp pp2

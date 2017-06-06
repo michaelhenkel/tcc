@@ -7,11 +7,11 @@ Network:
     netmask: 255.255.255.0
 Customers:
 - name: cust1
-  back_refs: [svc4]
+  back_refs: [svc1]
 - name: cust2
-  back_refs: []
+  back_refs: [svc2]
 - name: cust3
-  back_refs: []
+  back_refs: [svc3]
 VirtualRouters:
 - name: vr1
   ipaddress: 192.168.1.70
@@ -29,7 +29,7 @@ VirtualRouters:
   ipaddress: 192.168.1.72
   protocolprocessor: pp3
   host: 192.168.1.4
-  mac: 52:54:00:16:a9:59
+  mac: 52:54:00:ce:c5:9f
   back_refs: []
 ProtocolProcessors:
 - name: pp1
@@ -53,34 +53,75 @@ Terminals:
   host: 192.168.1.1
   vxlanip: 10.0.0.10
   protocolprocessor: pp2
-  back_refs: [svc4]
+  back_refs: [svc1, svc2]
   Id: 2
 - name: t2
   ipaddress: 192.168.1.91
   host: 192.168.1.1
   vxlanip: 10.0.0.11
   protocolprocessor: pp2
-  back_refs: []
+  back_refs: [svc2, svc3]
   Id: 1
 - name: t3
   ipaddress: 192.168.1.92
   host: 192.168.1.1
   vxlanip: 10.0.0.12
   protocolprocessor: pp3
-  back_refs: []
+  back_refs: [svc3, svc1]
   Id: 1
 Services:
-- name: svc4
+- name: svc1
   terminal:
   - t1: 11
+  - t3: 2
   customer: cust1
-  mode: l3
-  cvlan: '0'
-  routetarget: '1:4'
-  subnet: 4.0.0.0/24
-  back_refs: [ep40]
+  mode: l2
+  cvlan: '1'
+  routetarget: '1:1'
+  subnet: 1.0.0.0/24
+  back_refs: [ep10, ep11]
+- name: svc2
+  terminal:
+  - t2: 1
+  - t1: 12
+  customer: cust2
+  mode: l2
+  cvlan: '2'
+  routetarget: '1:2'
+  subnet: 2.0.0.0/24
+  back_refs: [ep20, ep21]
+- name: svc3
+  terminal:
+  - t3: 1
+  - t2: 2
+  customer: cust3
+  mode: l2
+  cvlan: '3'
+  routetarget: '1:3'
+  subnet: 3.0.0.0/24
+  back_refs: [ep30, ep31]
 Endpoints:
-- name: ep40
+- name: ep10
   endpointtype: ns
   terminal: t1
-  service: svc4
+  service: svc1
+- name: ep20
+  endpointtype: ns
+  terminal: t2
+  service: svc2
+- name: ep30
+  endpointtype: ns
+  terminal: t3
+  service: svc3
+- name: ep11
+  endpointtype: ns
+  terminal: t3
+  service: svc1
+- name: ep21
+  endpointtype: ns
+  terminal: t1
+  service: svc2
+- name: ep31
+  endpointtype: ns
+  terminal: t2
+  service: svc3
